@@ -1,0 +1,10 @@
+﻿  renderer.cpp
+C:\Users\jap\Dropbox\jap\IST\cadeiras\AVT\AVTM-2627\LAB\week 1\MyAVTM\MyAVTM_Template\MyAVTM_Template\renderer.cpp(294,49): warning C4244: '-=': conversion from 'double' to 'float', possible loss of data
+C:\Users\jap\Dropbox\jap\IST\cadeiras\AVT\AVTM-2627\LAB\week 1\MyAVTM\MyAVTM_Template\MyAVTM_Template\renderer.cpp(300,49): warning C4244: '+=': conversion from 'double' to 'float', possible loss of data
+  Generating code
+  2 of 685 functions ( 0.3%) were compiled, the rest were copied from previous compilation.
+    0 functions were new in current compilation
+    8 functions had inline decision re-evaluated but remain unchanged
+  Finished generating code
+  MyAVTM_Template.vcxproj -> C:\Users\jap\Dropbox\jap\IST\cadeiras\AVT\AVTM-2627\LAB\week 1\MyAVTM\MyAVTM_Template\x64\Release\MyAVTM_Template.exe
+  0 File(s) copied
