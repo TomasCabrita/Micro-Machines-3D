@@ -73,6 +73,34 @@ float coneDir[4] = { 0.0f, -0.0f, -1.0f, 0.0f };
 
 bool fontLoaded = false;
 
+/// ::::::::::::::::::::::::::::::::::::::::::::::::AUXILIARY FUNCIONS:::::::::::::::::::::::::::::::::::::::::::::::::://///
+
+// Auxiliary function to draw a mesh object with the given position, scale, and mesh ID
+void drawObject(int meshID,
+	float posX, float posY, float posZ,
+	float scaleX, float scaleY, float scaleZ,
+	float rotAngle = 0.0f,
+	int texMode = 1) {
+
+	mu.pushMatrix(gmu::MODEL);
+	mu.translate(gmu::MODEL, posX, posY, posZ); // Translate the cube to the desired position
+	mu.rotate(gmu::MODEL, rotAngle, 1.0f, 0.0f, 0.0f); // Rotate the cube around the X-axis
+	mu.scale(gmu::MODEL, scaleX, scaleY, scaleZ); // Scale the cube to the desired size
+	mu.translate(gmu::MODEL, -0.5f, -0.5f, -0.5f); // Center the cube at the origin
+
+	mu.computeDerivedMatrix(gmu::PROJ_VIEW_MODEL);
+	mu.computeNormalMatrix3x3();
+
+	dataMesh data;
+	data.meshID = meshID;
+	data.texMode = texMode; // 0:no texturing; 1:modulate diffuse color with texel color; 2:diffuse color is replaced by texel color; 3: multitexturing
+	data.vm = mu.get(gmu::VIEW_MODEL),
+		data.pvm = mu.get(gmu::PROJ_VIEW_MODEL);
+	data.normal = mu.getNormalMatrix();
+	renderer.renderMesh(data);
+	mu.popMatrix(gmu::MODEL);
+}
+
 /// ::::::::::::::::::::::::::::::::::::::::::::::::CALLBACK FUNCIONS:::::::::::::::::::::::::::::::::::::::::::::::::://///
 
 void timer(int value)
@@ -148,75 +176,112 @@ void renderSim(void) {
 	renderer.setSpotLightMode(spotlight_mode);
 	renderer.setSpotParam(coneDir, 0.93);
 
-	dataMesh data;
-	
-	// Draw the floor - myMeshes[0] contains the cube object
-	mu.pushMatrix(gmu::MODEL);
-	mu.translate(gmu::MODEL, 0.0f, -1.15f, 0.0f);
-	mu.scale(gmu::MODEL, 30.0f, 0.1f, 30.0f);
-	mu.translate(gmu::MODEL, -0.5f, -0.5f, -0.5f); //centrar o cubo na origem
+	// Geometry parameters to scale and translate the objects in the scene
+	float tableWidth = 150.0f, tableHeight = 1.0f, tableDepth = 150.0f;
+	float tablePosY = -1.0f;
 
-	mu.computeDerivedMatrix(gmu::PROJ_VIEW_MODEL);
-	mu.computeNormalMatrix3x3();
+	float roadWidth = 10.0f, roadHeight = 0.1f;
+	float roadPosY = tablePosY * 0.5f;
 
-	data.meshID = 0;
-	data.texMode = 1; //modulate diffuse color with texel color
-	data.vm = mu.get(gmu::VIEW_MODEL),
-	data.pvm = mu.get(gmu::PROJ_VIEW_MODEL);
-	data.normal = mu.getNormalMatrix();
-	renderer.renderMesh(data);
-	mu.popMatrix(gmu::MODEL);
+	float marginWidth = 1.0f, marginHeight = 1.0f;
+	float marginPosY = roadPosY + 0.3f;
 
-	//Draw the other objects
-	int objId = 0; //id of the current object mesh - to be used as index of the array Mymeshes in the renderer object
-	for (int i = 0; i < 4; ++i) {
-		for (int j = 0; j < 4; ++j) {
-			mu.pushMatrix(gmu::MODEL);
-			mu.translate(gmu::MODEL, (float)i * 3.7f, 0.0f, (float)j * 3.7f);
+	// Draw the table - myMeshes[0] contains the cube object
+	drawObject(0, 0.0f,  tablePosY, 0.0f, tableWidth, tableHeight, tableDepth);
 
-			mu.computeDerivedMatrix(gmu::PROJ_VIEW_MODEL);
-			mu.computeNormalMatrix3x3();
+	// Draw the road - myMeshes[1] contains the cube object
+	drawObject(1,  60.0f, roadPosY,        -5.0f,  roadWidth, roadHeight, 70.0f);	      // 1: Start road
+	drawObject(1,  30.0f, roadPosY,         35.0f, 70.0f,     roadHeight, roadWidth);	  // 2: Horizontal road
+	drawObject(1,  0.0f,  roadPosY + 7.5f,  14.0f, roadWidth, roadHeight, 40.0f, 25.0f);  // 3: Inclined vertical road
+	drawObject(1,  0.0f,  roadPosY,        -25.0f, roadWidth, roadHeight, 50.0f);		  // 4: Vertical road
+	drawObject(1, -30.0f, roadPosY,        -55.0f, 70.0f,     roadHeight, roadWidth);	  // 5: Horizontal road
+	drawObject(1, -60.0f, roadPosY + 2.5f, -40.5f, roadWidth, roadHeight, 20.0f, -15.0f); // 6: Inclined vertical road
+	drawObject(1, -60.0f, roadPosY + 5.0f, -26.0f, roadWidth, roadHeight, 10.0f);	      // 7: Vertical road
+	drawObject(1, -60.0f, roadPosY + 7.5f, -11.5f, roadWidth, roadHeight, 20.0f, -15.0f); // 8: Inclined vertical road
+	drawObject(1, -60.0f, roadPosY + 10.0f, 3.0f,  roadWidth, roadHeight, 10.0f);	      // 9: Vertical road
+	drawObject(1, -60.0f, roadPosY + 7.5f,  17.5f, roadWidth, roadHeight, 20.0f, 15.0f);  // 10: Inclined vertical road
+	drawObject(1, -60.0f, roadPosY + 5.0f,  32.0f, roadWidth, roadHeight, 10.0f);	      // 11: Vertical road
+	drawObject(1, -60.0f, roadPosY + 2.5f,  46.5f, roadWidth, roadHeight, 20.0f, 15.0f);  // 12: Inclined vertical road
+	drawObject(1, -40.0f, roadPosY,		    60.0f, 50.0f,     roadHeight, roadWidth);	  // 13: Horizontal road
+	drawObject(1, -20.0f, roadPosY,         40.0f, roadWidth, roadHeight, 30.0f);		  // 14: Vertical road
+	drawObject(1,  10.0f, roadPosY,			20.0f, 70.0f,     roadHeight, roadWidth);	  // 15: Horizontal road
+	drawObject(1,  40.0f, roadPosY,        -12.5f, roadWidth, roadHeight, 55.0f);		  // 16: Vertical road
+	drawObject(1,  50.0f, roadPosY,        -45.0f, 30.0f,     roadHeight, roadWidth);	  // 17: Horizontal road
 
-			data.meshID = objId;
-			data.texMode = i;   //0:no texturing; 1:modulate diffuse color with texel color; 2:diffuse color is replaced by texel color; 3: multitexturing
-			data.vm = mu.get(gmu::VIEW_MODEL),
-			data.pvm = mu.get(gmu::PROJ_VIEW_MODEL);
-			data.normal = mu.getNormalMatrix();
-			renderer.renderMesh(data);
+	// Draw the margins - myMeshes[2] contains the cube object
+	drawObject(2,  55.0f, marginPosY,        -5.0f,  marginWidth, marginHeight, 70.0f);         // 1.1: Left start road margin
+	drawObject(2,  65.0f, marginPosY,        -5.0f,  marginWidth, marginHeight, 90.0f);         // 1.2: Right start road margin
+	drawObject(2,  30.0f, marginPosY,         30.0f, 50.0f,       marginHeight, marginWidth);   // 2.1: Front horizontal road margin
+	drawObject(2,  30.0f, marginPosY,         40.0f, 70.0f,       marginHeight, marginWidth);   // 2.2: Back horizontal road maring
+	drawObject(2, -5.0f,  marginPosY,         35.0f, marginWidth, marginHeight, 10.0f);         // 2.3: Left horizontal road margin
+	drawObject(2, -5.0f,  marginPosY + 7.5f,  14.0f, marginWidth, marginHeight, 40.0f, 25.0f);  // 3.1: Left inclined vertical road margin
+	drawObject(2,  5.0f,  marginPosY + 7.5f,  14.0f, marginWidth, marginHeight, 40.0f, 25.0f);  // 3.2: Right inclined vertical road margin
+	drawObject(2,  0.0f,  marginPosY,         0.0f,  10.0f,       marginHeight, marginWidth);   // 4.1: Back vertical road margin
+	drawObject(2, -5.0f,  marginPosY,        -25.0f, marginWidth, marginHeight, 50.0f);		    // 4.2: Left vertical road margin
+	drawObject(2,  5.0f,  marginPosY,        -30.0f, marginWidth, marginHeight, 60.0f);		    // 4.3: Right vertical road margin
+	drawObject(2, -30.0f, marginPosY,        -60.0f, 70.0f,       marginHeight, marginWidth);   // 5.1: Front horizontal road margin
+	drawObject(2, -30.0f, marginPosY,        -50.0f, 50.0f,       marginHeight, marginWidth);   // 5.2: Back horizontal road margin
+	drawObject(2, -65.0f, marginPosY,        -55.0f, marginWidth, marginHeight, 10.0f);         // 5.3: Left horizontal road margin
+	drawObject(2, -65.0f, marginPosY + 2.5f, -40.5f, marginWidth, marginHeight, 20.0f, -15.0f); // 6.1: Left inclined vertical road margin
+	drawObject(2, -55.0f, marginPosY + 2.5f, -40.5f, marginWidth, marginHeight, 20.0f, -15.0f); // 6.2: Right inclined vertical road margin
+	drawObject(2, -65.0f, marginPosY + 5.0f, -26.0f, marginWidth, marginHeight, 10.0f);	        // 7.1: Left vertical road margin
+	drawObject(2, -55.0f, marginPosY + 5.0f, -26.0f, marginWidth, marginHeight, 10.0f);	        // 7.2: Right vertical road margin
+	drawObject(2, -65.0f, marginPosY + 7.5f, -11.5f, marginWidth, marginHeight, 20.0f, -15.0f); // 8.1: Left inclined vertical road margin
+	drawObject(2, -55.0f, marginPosY + 7.5f, -11.5f, marginWidth, marginHeight, 20.0f, -15.0f); // 8.2: Right inclined vertical road margin
+	drawObject(2, -65.0f, marginPosY + 10.0f, 3.0f,  marginWidth, marginHeight, 10.0f);	        // 9.1: Left vertical road margin
+	drawObject(2, -55.0f, marginPosY + 10.0f, 3.0f,  marginWidth, marginHeight, 10.0f);	        // 9.2: Right vertical road margin
+	drawObject(2, -65.0f, marginPosY + 7.5f,  17.5f, marginWidth, marginHeight, 20.0f, 15.0f);  // 10.1: Left inclined vertical road margin
+	drawObject(2, -55.0f, marginPosY + 7.5f,  17.5f, marginWidth, marginHeight, 20.0f, 15.0f);  // 10.2: Right inclined vertical road margin
+	drawObject(2, -65.0f, marginPosY + 5.0f,  32.0f, marginWidth, marginHeight, 10.0f);	        // 11.1: Left vertical road margin
+	drawObject(2, -55.0f, marginPosY + 5.0f,  32.0f, marginWidth, marginHeight, 10.0f);	        // 11.2: Right vertical road margin
+	drawObject(2, -65.0f, marginPosY + 2.5f,  46.5f, marginWidth, marginHeight, 20.0f, 15.0f);  // 12.1: Left inclined vertical road margin
+	drawObject(2, -55.0f, marginPosY + 2.5f,  46.5f, marginWidth, marginHeight, 20.0f, 15.0f);  // 12.2: Right inclined vertical road margin
+	drawObject(2, -40.0f, marginPosY,         55.0f, 30.0f,       marginHeight, marginWidth);	// 13.1: Front horizontal road margin
+	drawObject(2, -40.0f, marginPosY,         65.0f, 50.0f,       marginHeight, marginWidth);	// 13.2: Back horizontal road margin
+	drawObject(2, -65.0f, marginPosY,         60.0f, marginWidth, marginHeight, 10.0f);	        // 13.3: Left horizontal road margin
+	drawObject(2, -25.0f, marginPosY,         35.0f, marginWidth, marginHeight, 40.0f);		    // 14.1: Left vertical road margin
+	drawObject(2, -15.0f, marginPosY,         45.0f, marginWidth, marginHeight, 40.0f);		    // 14.2: Right vertical road margin
+	drawObject(2,  5.0f,  marginPosY,         15.0f, 60.0f,       marginHeight, marginWidth);	// 15.1: Front horizontal road margin
+	drawObject(2,  15.0f, marginPosY,         25.0f, 60.0f,       marginHeight, marginWidth);	// 15.2: Back horizontal road margin
+	drawObject(2,  35.0f, marginPosY,        -17.5f, marginWidth, marginHeight, 65.0f);		    // 16.1: Left vertical road margin
+	drawObject(2,  45.0f, marginPosY,        -7.5f,  marginWidth, marginHeight, 65.0f);		    // 16.2: Right vertical road margin
+	drawObject(2,  50.0f, marginPosY,        -50.0f, 30.0f,       marginHeight, marginWidth);	// 17.1: Front horizontal road margin
+	drawObject(2,  50.0f, marginPosY,        -40.0f, 10.0f,       marginHeight, marginWidth);	// 17.2: Back horizontal road margin
 
-			mu.popMatrix(gmu::MODEL);
-			objId = (objId + 1) % 6;
-		}
-	}
+	// Draw the start flag and start line
+	drawObject(1, 55.0f, roadPosY + 7.5f,  -5.0f, 1.0f,      15.0f, 1.0f); // 1: Left flag pole
+	drawObject(1, 65.0f, roadPosY + 7.5f,  -5.0f, 1.0f,      15.0f, 1.0f); // 2: Right flag pole
+	drawObject(2, 60.0f, roadPosY + 10.0f, -5.0f, roadWidth, 3.0f,  1.0f); // 3: Flag
+	drawObject(2, 60.0f, roadPosY + 0.1f,  -5.0f, roadWidth, 0.1f,  1.0f); // 4: Start line
 
 	//Render text (bitmap fonts) in screen coordinates. So use ortoghonal projection with viewport coordinates.
 	//Each glyph quad texture needs just one byte color channel: 0 in background and 1 for the actual character pixels. Use it for alpha blending
 	//text to be rendered in last place to be in front of everything
 	
-	if(fontLoaded) {
-		glDisable(GL_DEPTH_TEST);
-		TextCommand textCmd = { "AVTM 2026 Welcome:\nGood Luck!", {100, 100}, 0.5 };
-		//the glyph contains transparent background colors and non-transparent for the actual character pixels. So we use the blending
-		glEnable(GL_BLEND);  
-		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		int m_viewport[4];
-		glGetIntegerv(GL_VIEWPORT, m_viewport);
+	//if(fontLoaded) {
+	//	glDisable(GL_DEPTH_TEST);
+	//	TextCommand textCmd = { "AVTM 2026 Welcome:\nGood Luck!", {100, 100}, 0.5 };
+	//	//the glyph contains transparent background colors and non-transparent for the actual character pixels. So we use the blending
+	//	glEnable(GL_BLEND);  
+	//	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	//	int m_viewport[4];
+	//	glGetIntegerv(GL_VIEWPORT, m_viewport);
 
-		//viewer at origin looking down at  negative z direction
+	//	//viewer at origin looking down at  negative z direction
 
-		mu.loadIdentity(gmu::MODEL);
-		mu.loadIdentity(gmu::VIEW);
-		mu.pushMatrix(gmu::PROJECTION);
-		mu.loadIdentity(gmu::PROJECTION);
-		mu.ortho(m_viewport[0], m_viewport[0] + m_viewport[2] - 1, m_viewport[1], m_viewport[1] + m_viewport[3] - 1, -1, 1);
-		mu.computeDerivedMatrix(gmu::PROJ_VIEW_MODEL);
-		textCmd.pvm = mu.get(gmu::PROJ_VIEW_MODEL);
-		renderer.renderText(textCmd);
-		mu.popMatrix(gmu::PROJECTION);
-		glDisable(GL_BLEND);
-		glEnable(GL_DEPTH_TEST);
-		
-	}
+	//	mu.loadIdentity(gmu::MODEL);
+	//	mu.loadIdentity(gmu::VIEW);
+	//	mu.pushMatrix(gmu::PROJECTION);
+	//	mu.loadIdentity(gmu::PROJECTION);
+	//	mu.ortho(m_viewport[0], m_viewport[0] + m_viewport[2] - 1, m_viewport[1], m_viewport[1] + m_viewport[3] - 1, -1, 1);
+	//	mu.computeDerivedMatrix(gmu::PROJ_VIEW_MODEL);
+	//	textCmd.pvm = mu.get(gmu::PROJ_VIEW_MODEL);
+	//	renderer.renderText(textCmd);
+	//	mu.popMatrix(gmu::PROJECTION);
+	//	glDisable(GL_BLEND);
+	//	glEnable(GL_DEPTH_TEST);
+	//	
+	//}
 	
 	glutSwapBuffers();
 }
@@ -380,6 +445,48 @@ void buildScene()
 	float emissive[] = { 0.0f, 0.0f, 0.0f, 1.0f };
 	float shininess = 100.0f;
 	int texcount = 0;
+
+	// create geometry and VAO of the table
+	float ambTable[] = { 0.2f, 0.15f, 0.1f, 1.0f };
+	float diffTable[] = { 0.8f, 0.6f, 0.4f, 1.0f };
+	float specTable[] = { 0.8f, 0.8f, 0.8f, 1.0f };
+
+	amesh = createCube();
+	memcpy(amesh.mat.ambient, ambTable, 4 * sizeof(float));
+	memcpy(amesh.mat.diffuse, diffTable, 4 * sizeof(float));
+	memcpy(amesh.mat.specular, specTable, 4 * sizeof(float));
+	memcpy(amesh.mat.emissive, emissive, 4 * sizeof(float));
+	amesh.mat.shininess = shininess;
+	amesh.mat.texCount = texcount;
+	renderer.myMeshes.push_back(amesh);
+
+	// create geometry and VAO of the road
+	float ambRoad[] = { 0.1f, 0.1f, 0.1f, 1.0f };
+	float diffRoad[] = { 0.4f, 0.4f, 0.4f, 1.0f };
+	float specRoad[] = { 0.8f, 0.8f, 0.8f, 1.0f };
+
+	amesh = createCube();
+	memcpy(amesh.mat.ambient, ambRoad, 4 * sizeof(float));
+	memcpy(amesh.mat.diffuse, diffRoad, 4 * sizeof(float));
+	memcpy(amesh.mat.specular, specRoad, 4 * sizeof(float));
+	memcpy(amesh.mat.emissive, emissive, 4 * sizeof(float));
+	amesh.mat.shininess = shininess;
+	amesh.mat.texCount = texcount;
+	renderer.myMeshes.push_back(amesh);
+
+	// create geometry and VAO of the road margins
+	float ambMargin[] = { 0.2f, 0.0f, 0.15f, 1.0f };
+	float diffMargin[] = { 0.8f, 0.0f, 0.6f, 1.0f };
+	float specMargin[] = { 0.8f, 0.8f, 0.8f, 1.0f };
+
+	amesh = createCube();
+	memcpy(amesh.mat.ambient, ambMargin, 4 * sizeof(float));
+	memcpy(amesh.mat.diffuse, diffMargin, 4 * sizeof(float));
+	memcpy(amesh.mat.specular, specMargin, 4 * sizeof(float));
+	memcpy(amesh.mat.emissive, emissive, 4 * sizeof(float));
+	amesh.mat.shininess = shininess;
+	amesh.mat.texCount = texcount;
+	renderer.myMeshes.push_back(amesh);
 
 	// create geometry and VAO of the cube
 	amesh = createCube();
