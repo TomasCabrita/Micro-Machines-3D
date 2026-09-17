@@ -56,6 +56,16 @@ float camX, camY, camZ;
 float alpha = 57.0f, _beta = 18.0f;
 float r = 45.0f;
 
+//Cameras (new)
+//1 = satellite orthographic
+//2 = satellite perspective
+//3 = car following perspective
+int CameraMode = 1;
+
+//Aspect ratio da janela
+float aspectRatio = 640.0f / 480.0f;
+
+
 // Mouse Tracking Variables
 int startX, startY, tracking = 0;
 
@@ -125,9 +135,11 @@ void refresh(int value)
 //
 // Reshape Callback Function
 //
+// Atualiza o viewpoint quando a janela muda de tamanho
 
 void changeSize(int w, int h) {
 
+	/* (Antigo - lightDemo)
 	float ratio;
 	// Prevent a divide by zero, when window is too short
 	if(h == 0)
@@ -138,6 +150,65 @@ void changeSize(int w, int h) {
 	ratio = (1.0f * w) / h;
 	mu.loadIdentity(gmu::PROJECTION);
 	mu.perspective(53.13f, ratio, 0.1f, 1000.0f);
+	*/
+
+	// Prevent a divide by zero, when window is too short
+	if (h == 0)
+		h = 1;
+
+	WinX = w;
+	WinY = h;
+
+	// set the viewport to be the entire window
+	glViewport(0, 0, w, h);
+	//guarda o aspecto ratio para as cameras
+	aspectRatio = (float)w / (float)h;
+
+}
+
+//Decide qual projecao usar - depende das cameras (adaptavel ao tamanho da mesa)
+void setupCamera(float tableWidth, float tableDepth, float tablePosY) {
+	// Reconstroi
+	mu.loadIdentity(gmu::VIEW);
+	mu.loadIdentity(gmu::PROJECTION);
+
+	// margem da camara com mais 10% de espaco do que a mesa ocupa
+	float margin = 1.10f;
+
+	//tamanho da camara dependendo da mesa
+	float halfView = std::max(tableDepth * 0.5f, (tableWidth * 0.5f) / aspectRatio);
+	halfView *= margin;
+
+//Camera 1 - Fixed top camera + orthographic
+	if (CameraMode == 1) {
+		mu.ortho(-halfView * aspectRatio, halfView * aspectRatio, -halfView, halfView, 0.1f, 1000.0f);
+
+		mu.lookAt(
+			0.0f, 200.0f, 0.0f,		//posicao
+			0.0f, tablePosY, 0.0f,	// olha para o centro da mesa
+			0.0f, 0.0f, -1.0f		// cima da mesa (e não em baixo)
+		);
+	}
+
+//Camera 2 - Fixed top camera + prespective
+	else if (CameraMode == 2) {
+
+
+		mu.perspective(53.13f, aspectRatio, 0.1f, 1000.0f);
+
+		mu.lookAt(
+			0.0f, tablePosY + (1.4f * halfView), (1.8f * halfView),	//posicao
+			0.0f, tablePosY, 0.0f,	//para onde olha
+			0.0f, 0.0f, -1.0f	// cima da imagem
+		);
+	}
+
+// Camera 3 - Moving camera + prespective (aceita rato)
+	else if (CameraMode == 3) {
+		// TO DO
+
+	}
+
 }
 
 
@@ -159,11 +230,16 @@ void renderSim(void) {
 	renderer.setTexUnit(1, 1);
 	renderer.setTexUnit(2, 2);
 
+
+	/* antigo (lightDemo)
 	// load identity matrices
 	mu.loadIdentity(gmu::VIEW);
 	mu.loadIdentity(gmu::MODEL);
 	// set the camera using a function similar to gluLookAt
 	mu.lookAt(camX, camY, camZ, 0, 0, 0, 0, 1, 0);
+
+
+	*/
 
 	//send the light position in eye coordinates
 	renderer.setLightPos(lightPos); //efeito capacete do mineiro, ou seja lighPos foi definido em eye coord 
@@ -185,6 +261,14 @@ void renderSim(void) {
 
 	float marginWidth = 1.0f, marginHeight = 1.0f;
 	float marginPosY = roadPosY + 0.3f;
+
+
+	//Reset da MODEL e inicia a camara
+	mu.loadIdentity(gmu::MODEL);
+	setupCamera(tableWidth, tableDepth, tablePosY);
+
+
+
 
 	// Draw the table - myMeshes[0] contains the cube object
 	drawObject(0, 0.0f,  tablePosY, 0.0f, tableWidth, tableHeight, tableDepth);
@@ -294,6 +378,21 @@ void renderSim(void) {
 void processKeys(unsigned char key, int xx, int yy)
 {
 	switch(key) {
+		//Cameras (1,2,3)
+		case '1':
+			CameraMode = 1;
+			printf("Camera 1: Fixed orthogonal camera - satellite top view\n");
+			break;
+
+		case '2':
+			CameraMode = 2;
+			printf("Camera 2: Fixed prespective camera - satellite top view\n");
+			break;
+
+		case '3':
+			CameraMode = 3;
+			printf("TO DO: Camera 3: Moving prespective camera - car following\n");
+			break;
 
 		case 27:
 			glutLeaveMainLoop();

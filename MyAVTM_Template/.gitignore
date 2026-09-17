@@ -1,0 +1,23 @@
+# Visual Studio
+.vs/
+
+# Build directories
+x64/
+x86/
+Debug/
+Release/
+
+# Visual Studio user files
+*.user
+*.suo
+
+# Compiled/intermediate files
+*.obj
+*.pch
+*.pdb
+*.ilk
+*.tlog
+*.lastbuildstate
+
+# Executables
+*.exe
