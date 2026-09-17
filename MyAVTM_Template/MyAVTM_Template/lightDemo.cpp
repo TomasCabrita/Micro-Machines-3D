@@ -86,7 +86,12 @@ float coneDir[4] = { 0.0f, -0.0f, -1.0f, 0.0f };
 bool fontLoaded = false;
 
 
-const int CAR_BODY_MESH = 9;			// cubo vermelho
+const int CAR_NORMAL_MESH = 9;   // rosa
+const int CAR_METAL_MESH = 10;  // metal
+const int CAR_GLASS_MESH = 11;  // vidro cinza-azulado
+const int CAR_WHEEL_MESH = 12;  // roda
+const int CAR_LIGHT_MESH = 13;  // farois
+const int CAR_PLATE_MESH = 14;  // matricula
 
 struct Car {
 	// Posição no mundo
@@ -173,18 +178,128 @@ void drawCenteredObject(
 	mu.popMatrix(gmu::MODEL);
 }
 
-
-void drawCar(const Car& car) {
+void drawCar(const Car& car)
+{
 	mu.pushMatrix(gmu::MODEL);
 	mu.translate(gmu::MODEL, car.x, car.y, car.z);
 	mu.rotate(gmu::MODEL, car.angle, 0.0f, 1.0f, 0.0f);
 
-	// Carro = um unico retangulo (paralelepipedo) no chao
-	// TO DO: o actually carro haha
-	drawObject(CAR_BODY_MESH,
-		0.0f, car.height * 0.5f, 0.0f,
-		car.width, car.height, car.depth,
+
+	// 1 - para choques (trás)
+	drawObject(CAR_METAL_MESH,			// material
+		0.0f, 0.90f, -1.5375f,			// posição
+		car.width -0.5f, 3.675f, 1.10f, // tamanho
+		-90.0f,							// rotação
+		0);
+
+
+	// 2 - bagagem (separacao entre vidro e choques) (Trás)
+	drawObject(CAR_NORMAL_MESH,
+		0.0f, 1.071f, -1.304f,
+		car.width, 1.682f, 0.4f,
+		-36.03f, 0);
+
+	// 3 - Vidro (trás)
+	drawObject(CAR_GLASS_MESH,
+		0.0f, 2.1f, -0.554f,
+		car.width -0.4f, 1.6f, 1.196f,
+		-58.67f,0);
+
+	// 4 - Parte de trás (onde está o vidro) (trás)
+	drawObject(CAR_NORMAL_MESH,
+		0.0f, 1.712f, -0.554f,
+		car.width, 1.924f, 2.196f,
+		-58.67f, 0);
+
+	// 5 - teto
+	drawObject(CAR_NORMAL_MESH,
+		0.0f, 2.088f, 0.0f,
+		car.width, 2.2f, 1.70f,
 		0.0f, 0);
+
+
+	// 4.5 - Parte da frente (onde está o vidro) (frente)
+	drawObject(CAR_NORMAL_MESH,
+		0.0f, 1.712f, 0.554f,
+		car.width, 1.924f, 2.196f,
+		58.67f,0);
+
+	// 3.5 - Vidro (frente)
+	drawObject(CAR_GLASS_MESH,
+		0.0f, 2.1f, 0.554f,
+		car.width - 0.4f, 1.6f, 1.196f,
+		58.67f, 0);
+
+	// 2.5 - bagagem (separacao entre vidro e choques) (frente)
+	drawObject(CAR_NORMAL_MESH,
+		0.0f, 1.071f, 1.304f,
+		car.width, 1.682f, 0.4f,
+		36.03f, 0);
+
+	// 1.5 - para choques (frente)
+	drawObject(CAR_METAL_MESH,
+		0.0f, 0.5f, 1.5375f,
+		car.width - 0.5f, 3.675f, 0.2f, 
+		90.0f, 0);
+
+	// matricula
+	drawObject(CAR_PLATE_MESH,
+		0.0f, 1.0f, 1.5375f,
+		car.width - 3.0f, 3.675f, 0.5f, 
+		90.0f, 0);
+
+	// Farol esquerdo
+	drawCenteredObject(CAR_LIGHT_MESH,
+	-1.7f, 1.18f, 3.3f,
+	0.38f, 0.38f, 0.12f,
+	0.0f, 0.0f, 0.0f,
+	0);
+
+	// Farol direito
+	drawCenteredObject(CAR_LIGHT_MESH,
+	1.7f, 1.18f, 3.3f,
+	0.38f, 0.38f, 0.12f,
+	0.0f, 0.0f, 0.0f,
+	0);
+
+	// Base principal (baixo)
+	drawObject(CAR_NORMAL_MESH,
+		0.0f, 0.963f, 0.0f,
+		car.width, 1.375f, 6.70f,
+		0.0f,0);
+
+	// Rodas
+	float wheelX = car.width * 0.5f;  // lados do carro
+	float wheelY = 0.65f;             // altura da roda
+	float wheelZ = 2.15f;             // frente/trás
+
+	// Roda esquerda trás
+	drawCenteredObject(CAR_WHEEL_MESH,
+		-wheelX, wheelY, -wheelZ,
+		1.0f, 1.0f, 1.0f,
+		0.0f, 0.0f, 90.0f,
+		0);
+
+	// Roda direita trás
+	drawCenteredObject(CAR_WHEEL_MESH,
+		wheelX, wheelY, -wheelZ,
+		1.0f, 1.0f, 1.0f,
+		0.0f, 0.0f, 90.0f,
+		0);
+
+	// Roda esquerda frente
+	drawCenteredObject(CAR_WHEEL_MESH,
+		-wheelX, wheelY, wheelZ,
+		1.0f, 1.0f, 1.0f,
+		0.0f, 0.0f, 90.0f,
+		0);
+
+	// Roda direita frente
+	drawCenteredObject(CAR_WHEEL_MESH,
+		wheelX, wheelY, wheelZ,
+		1.0f, 1.0f, 1.0f,
+		0.0f, 0.0f, 90.0f,
+		0);
 
 	mu.popMatrix(gmu::MODEL);
 }
@@ -357,7 +472,7 @@ void renderSim(void) {
 	float marginWidth = 1.0f, marginHeight = 1.0f;
 	float marginPosY = roadPosY + 0.3f;
 
-	carBarbie.y = roadPosY + roadHeight * 0.5f;
+	carBarbie.y = roadPosY + roadHeight * 0.5f + 0.2f;
 
 	//Reset da MODEL e inicia a camara
 	mu.loadIdentity(gmu::MODEL);
@@ -733,19 +848,85 @@ void buildScene()
 	amesh.mat.texCount = texcount;
 	renderer.myMeshes.push_back(amesh);
 
-	// create geometry and VAO for the car body (9) - cubo vermelho
-	float ambCar[] = { 0.25f, 0.02f, 0.02f, 1.0f };
-	float diffCar[] = { 0.75f, 0.05f, 0.05f, 1.0f };
-	float specCar[] = { 0.90f, 0.85f, 0.85f, 1.0f };
-
+	// create geometry and VAO for the car body (9) - cubo rosa
+	float ambCar[] = { 0.25f, 0.03f, 0.15f, 1.0f };
+	float diffCar[] = { 0.95f, 0.20f, 0.60f, 1.0f };
+	float specCar[] = { 0.90f, 0.80f, 0.90f, 1.0f };
 	amesh = createCube();
 	memcpy(amesh.mat.ambient, ambCar, 4 * sizeof(float));
 	memcpy(amesh.mat.diffuse, diffCar, 4 * sizeof(float));
 	memcpy(amesh.mat.specular, specCar, 4 * sizeof(float));
 	memcpy(amesh.mat.emissive, emissive, 4 * sizeof(float));
-	amesh.mat.shininess = 150.0f;
+	amesh.mat.shininess = 100.0f;
 	amesh.mat.texCount = texcount;
 	renderer.myMeshes.push_back(amesh);
+
+	// create geometry and VAO for the metal car parts (10) - cubo metal
+	float ambBumper[] = {0.04f, 0.04f, 0.05f, 1.0f};
+	float diffBumper[] = {0.16f, 0.17f, 0.19f, 1.0f};
+	float specBumper[] = {0.85f, 0.88f, 0.95f, 1.0f};
+	amesh = createCube();
+	memcpy(amesh.mat.ambient, ambBumper, 4 * sizeof(float));
+	memcpy(amesh.mat.diffuse, diffBumper, 4 * sizeof(float));
+	memcpy(amesh.mat.specular, specBumper, 4 * sizeof(float));
+	memcpy(amesh.mat.emissive, emissive, 4 * sizeof(float));
+	amesh.mat.shininess = 180.0f;
+	amesh.mat.texCount = texcount;
+	renderer.myMeshes.push_back(amesh);
+
+	// create geometry and VAO for the window car (11) - cubo janela
+	float ambGlass[] = {0.08f, 0.12f, 0.16f, 1.0f};
+	float diffGlass[] = {0.35f, 0.65f, 0.85f, 1.0f};
+	float specGlass[] = {0.80f, 0.90f, 1.00f, 1.0f};
+	amesh = createCube();
+	memcpy(amesh.mat.ambient, ambGlass, 4 * sizeof(float));
+	memcpy(amesh.mat.diffuse, diffGlass, 4 * sizeof(float));
+	memcpy(amesh.mat.specular, specGlass, 4 * sizeof(float));
+	memcpy(amesh.mat.emissive, emissive, 4 * sizeof(float));
+	amesh.mat.shininess = 220.0f;
+	amesh.mat.texCount = texcount;
+	renderer.myMeshes.push_back(amesh);
+
+	// create geometry and VAO for the car's wheels (12) - donut roda
+	float ambWheel[] = {0.02f, 0.02f, 0.02f, 1.0f};
+	float diffWheel[] = {0.06f, 0.06f, 0.07f, 1.0f};
+	float specWheel[] = {0.20f, 0.20f, 0.22f, 1.0f};
+	amesh = createTorus(0.38f, 0.90f, 20, 20);
+	memcpy(amesh.mat.ambient, ambWheel, 4 * sizeof(float));
+	memcpy(amesh.mat.diffuse, diffWheel, 4 * sizeof(float));
+	memcpy(amesh.mat.specular, specWheel, 4 * sizeof(float));
+	memcpy(amesh.mat.emissive, emissive, 4 * sizeof(float));
+	amesh.mat.shininess = 40.0f;
+	amesh.mat.texCount = texcount;
+	renderer.myMeshes.push_back(amesh);
+
+	// create geometry and VAO for the car's headlights (13) - farois carro
+	float ambHeadlight[] = {0.35f, 0.35f, 0.30f, 1.0f};
+	float diffHeadlight[] = {1.00f, 0.95f, 0.80f, 1.0f};
+	float specHeadlight[] = {1.00f, 1.00f, 1.00f, 1.0f};
+	float emissiveHeadlight[] = {0.25f, 0.23f, 0.18f, 1.0f};
+	amesh = createSphere(1.0f, 20);
+	memcpy(amesh.mat.ambient, ambHeadlight, 4 * sizeof(float));
+	memcpy(amesh.mat.diffuse, diffHeadlight, 4 * sizeof(float));
+	memcpy(amesh.mat.specular, specHeadlight, 4 * sizeof(float));
+	memcpy(amesh.mat.emissive, emissiveHeadlight, 4 * sizeof(float));
+	amesh.mat.shininess = 200.0f;
+	amesh.mat.texCount = texcount;
+	renderer.myMeshes.push_back(amesh);
+
+	// create geometry and VAO for the car's plate (14) - matricula
+	float ambPlate[] = {0.30f, 0.30f, 0.30f, 1.0f};
+	float diffPlate[] = {0.90f, 0.90f, 0.90f, 1.0f};
+	float specPlate[] = {0.25f, 0.25f, 0.25f, 1.0f};
+	amesh = createCube();
+	memcpy(amesh.mat.ambient, ambPlate, 4 * sizeof(float));
+	memcpy(amesh.mat.diffuse, diffPlate, 4 * sizeof(float));
+	memcpy(amesh.mat.specular, specPlate, 4 * sizeof(float));
+	memcpy(amesh.mat.emissive, emissive, 4 * sizeof(float));
+	amesh.mat.shininess = 40.0f;
+	amesh.mat.texCount = texcount;
+	renderer.myMeshes.push_back(amesh);
+
 
 	//The truetypeInit creates a texture object in TexObjArray for storing the fontAtlasTexture
 	
