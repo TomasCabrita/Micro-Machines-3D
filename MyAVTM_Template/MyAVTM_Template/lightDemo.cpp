@@ -26,6 +26,8 @@
 
 #include <IL/il.h>
 
+#include <algorithm>
+
 #include "renderer.h"
 #include "shader.h"
 #include "mathUtility.h"
@@ -83,6 +85,31 @@ float coneDir[4] = { 0.0f, -0.0f, -1.0f, 0.0f };
 
 bool fontLoaded = false;
 
+
+const int CAR_BODY_MESH = 9;			// cubo vermelho
+
+struct Car {
+	// Posição no mundo
+	float x = 60.0f;
+	float y = 0.0f;
+	float z = -15.0f;
+
+	// Orientação
+	float angle = 0.0f;
+
+	// Dimensões gerais
+	float width = 4.5f;
+	float height = 3.6f;
+	float depth = 7.0f;
+
+	// Movimento
+	float speed = 0.0f;
+	float acceleration = 0.0f;
+	float maxSpeed = 10.0f;
+};
+
+Car carBarbie;
+
 /// ::::::::::::::::::::::::::::::::::::::::::::::::AUXILIARY FUNCIONS:::::::::::::::::::::::::::::::::::::::::::::::::://///
 
 // Auxiliary function to draw a mesh object with the given position, scale, and mesh ID
@@ -110,6 +137,58 @@ void drawObject(int meshID,
 	renderer.renderMesh(data);
 	mu.popMatrix(gmu::MODEL);
 }
+
+void drawCenteredObject(
+	int meshID,
+	float posX, float posY, float posZ,
+	float scaleX, float scaleY, float scaleZ,
+	float rotX = 0.0f,
+	float rotY = 0.0f,
+	float rotZ = 0.0f,
+	int texMode = 0)
+{
+	mu.pushMatrix(gmu::MODEL);
+
+	mu.translate(gmu::MODEL, posX, posY, posZ);
+
+	mu.rotate(gmu::MODEL, rotX, 1.0f, 0.0f, 0.0f);
+	mu.rotate(gmu::MODEL, rotY, 0.0f, 1.0f, 0.0f);
+	mu.rotate(gmu::MODEL, rotZ, 0.0f, 0.0f, 1.0f);
+
+	mu.scale(gmu::MODEL, scaleX, scaleY, scaleZ);
+
+	mu.computeDerivedMatrix(gmu::PROJ_VIEW_MODEL);
+	mu.computeNormalMatrix3x3();
+
+	dataMesh data;
+	data.meshID = meshID;
+	data.texMode = texMode;
+	data.vm = mu.get(gmu::VIEW_MODEL);
+	data.pvm = mu.get(gmu::PROJ_VIEW_MODEL);
+	data.pvm = mu.get(gmu::PROJ_VIEW_MODEL);
+	data.normal = mu.getNormalMatrix();
+
+	renderer.renderMesh(data);
+
+	mu.popMatrix(gmu::MODEL);
+}
+
+
+void drawCar(const Car& car) {
+	mu.pushMatrix(gmu::MODEL);
+	mu.translate(gmu::MODEL, car.x, car.y, car.z);
+	mu.rotate(gmu::MODEL, car.angle, 0.0f, 1.0f, 0.0f);
+
+	// Carro = um unico retangulo (paralelepipedo) no chao
+	// TO DO: o actually carro haha
+	drawObject(CAR_BODY_MESH,
+		0.0f, car.height * 0.5f, 0.0f,
+		car.width, car.height, car.depth,
+		0.0f, 0);
+
+	mu.popMatrix(gmu::MODEL);
+}
+
 
 /// ::::::::::::::::::::::::::::::::::::::::::::::::CALLBACK FUNCIONS:::::::::::::::::::::::::::::::::::::::::::::::::://///
 
@@ -205,7 +284,23 @@ void setupCamera(float tableWidth, float tableDepth, float tablePosY) {
 
 // Camera 3 - Moving camera + prespective (aceita rato)
 	else if (CameraMode == 3) {
-		// TO DO
+		mu.perspective(53.13f, aspectRatio, 0.1f, 1000.0f);
+
+		// A orientação da camara acompanha a orientação do carro
+		float carAngleRad = carBarbie.angle * 3.14f / 180.0f;
+
+		float offsetX = camX * cos(carAngleRad) + camZ * sin(carAngleRad);
+		float offsetZ = -camX * sin(carAngleRad) + camZ * cos(carAngleRad);
+
+		// Posição final da camara no mundo
+		float cameraX = carBarbie.x + offsetX;
+		float cameraY = carBarbie.y + 1.5f + camY;
+		float cameraZ = carBarbie.z + offsetZ;
+
+		// Camara olha para o carro
+		mu.lookAt(cameraX, cameraY, cameraZ,
+			carBarbie.x, carBarbie.y + 1.5f, carBarbie.z,
+			0.0f, 1.0f, 0.0f);
 
 	}
 
@@ -262,6 +357,7 @@ void renderSim(void) {
 	float marginWidth = 1.0f, marginHeight = 1.0f;
 	float marginPosY = roadPosY + 0.3f;
 
+	carBarbie.y = roadPosY + roadHeight * 0.5f;
 
 	//Reset da MODEL e inicia a camara
 	mu.loadIdentity(gmu::MODEL);
@@ -338,35 +434,7 @@ void renderSim(void) {
 	drawObject(2, 60.0f, roadPosY + 10.0f, -5.0f, roadWidth, 3.0f,  1.0f); // 3: Flag
 	drawObject(2, 60.0f, roadPosY + 0.1f,  -5.0f, roadWidth, 0.1f,  1.0f); // 4: Start line
 
-	//Render text (bitmap fonts) in screen coordinates. So use ortoghonal projection with viewport coordinates.
-	//Each glyph quad texture needs just one byte color channel: 0 in background and 1 for the actual character pixels. Use it for alpha blending
-	//text to be rendered in last place to be in front of everything
-	
-	//if(fontLoaded) {
-	//	glDisable(GL_DEPTH_TEST);
-	//	TextCommand textCmd = { "AVTM 2026 Welcome:\nGood Luck!", {100, 100}, 0.5 };
-	//	//the glyph contains transparent background colors and non-transparent for the actual character pixels. So we use the blending
-	//	glEnable(GL_BLEND);  
-	//	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	//	int m_viewport[4];
-	//	glGetIntegerv(GL_VIEWPORT, m_viewport);
-
-	//	//viewer at origin looking down at  negative z direction
-
-	//	mu.loadIdentity(gmu::MODEL);
-	//	mu.loadIdentity(gmu::VIEW);
-	//	mu.pushMatrix(gmu::PROJECTION);
-	//	mu.loadIdentity(gmu::PROJECTION);
-	//	mu.ortho(m_viewport[0], m_viewport[0] + m_viewport[2] - 1, m_viewport[1], m_viewport[1] + m_viewport[3] - 1, -1, 1);
-	//	mu.computeDerivedMatrix(gmu::PROJ_VIEW_MODEL);
-	//	textCmd.pvm = mu.get(gmu::PROJ_VIEW_MODEL);
-	//	renderer.renderText(textCmd);
-	//	mu.popMatrix(gmu::PROJECTION);
-	//	glDisable(GL_BLEND);
-	//	glEnable(GL_DEPTH_TEST);
-	//	
-	//}
-	
+	drawCar(carBarbie);
 	glutSwapBuffers();
 }
 
@@ -391,7 +459,15 @@ void processKeys(unsigned char key, int xx, int yy)
 
 		case '3':
 			CameraMode = 3;
-			printf("TO DO: Camera 3: Moving prespective camera - car following\n");
+			
+			alpha = 180.0f;
+			_beta = 18.0f;
+			r = 10.0f;
+			camX = r * sin(alpha * 3.14f / 180.0f) * cos(_beta * 3.14f / 180.0f);
+			camY = r * sin(_beta * 3.14f / 180.0f);
+			camZ = r * cos(alpha * 3.14f / 180.0f) * cos(_beta * 3.14f / 180.0f);
+
+			printf("Camera 3: Moving prespective camera - car following\n");
 			break;
 
 		case 27:
@@ -521,6 +597,16 @@ void mouseWheel(int wheel, int direction, int x, int y) {
 //
 // Scene building with basic geometry
 //
+// 0: table cube
+// 1: road cube
+// 2: margin cube
+// 3: cube
+// 4: pawn
+// 5: sphere
+// 6: cylinder
+// 7: cone
+// 8: torus
+// 9: car body cube (red)
 
 void buildScene()
 {
@@ -647,6 +733,20 @@ void buildScene()
 	amesh.mat.texCount = texcount;
 	renderer.myMeshes.push_back(amesh);
 
+	// create geometry and VAO for the car body (9) - cubo vermelho
+	float ambCar[] = { 0.25f, 0.02f, 0.02f, 1.0f };
+	float diffCar[] = { 0.75f, 0.05f, 0.05f, 1.0f };
+	float specCar[] = { 0.90f, 0.85f, 0.85f, 1.0f };
+
+	amesh = createCube();
+	memcpy(amesh.mat.ambient, ambCar, 4 * sizeof(float));
+	memcpy(amesh.mat.diffuse, diffCar, 4 * sizeof(float));
+	memcpy(amesh.mat.specular, specCar, 4 * sizeof(float));
+	memcpy(amesh.mat.emissive, emissive, 4 * sizeof(float));
+	amesh.mat.shininess = 150.0f;
+	amesh.mat.texCount = texcount;
+	renderer.myMeshes.push_back(amesh);
+
 	//The truetypeInit creates a texture object in TexObjArray for storing the fontAtlasTexture
 	
 	fontLoaded = renderer.truetypeInit(fontPathFile);
@@ -734,6 +834,4 @@ int main(int argc, char **argv) {
 
 	return(0);
 }
-
-
 
