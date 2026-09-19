@@ -132,11 +132,11 @@ bool Renderer::setRenderMeshesShaderProg(const std::string& vertShaderPath, cons
     shader.compileShader(Shader::VERTEX_SHADER, vertShaderPath);
     shader.compileShader(Shader::FRAGMENT_SHADER, fragShaderPath);
 
-    // set semantics for the shader variables
+    // Set semantics for the shader variables
     glBindFragDataLocation(program, 0, "colorOut");
     glBindAttribLocation(program, Shader::VERTEX_COORD_ATTRIB, "position");
     glBindAttribLocation(program, Shader::NORMAL_ATTRIB, "normal");
-	glBindAttribLocation(program, Shader::TANGENT_ATTRIB, "tangent");  // for normal mapping 
+	glBindAttribLocation(program, Shader::TANGENT_ATTRIB, "tangent");  // For normal mapping 
     glBindAttribLocation(program, Shader::TEXTURE_COORD_ATTRIB, "texCoord");
 
 
@@ -149,11 +149,21 @@ bool Renderer::setRenderMeshesShaderProg(const std::string& vertShaderPath, cons
     pvm_loc = glGetUniformLocation(program, "m_pvm");
     vm_loc = glGetUniformLocation(program, "m_viewModel");
     normal_loc = glGetUniformLocation(program, "m_normal");
-    texMode_loc = glGetUniformLocation(program, "texMode"); // different modes of texturing
-    lpos_loc = glGetUniformLocation(program, "l_pos");
+    texMode_loc = glGetUniformLocation(program, "texMode"); // Different modes of texturing
     tex_loc[0] = glGetUniformLocation(program, "texmap");
     tex_loc[1] = glGetUniformLocation(program, "texmap1");
     tex_loc[2] = glGetUniformLocation(program, "texmap2");
+	tex_loc[3] = glGetUniformLocation(program, "texmap3");
+
+    dayMode_loc = glGetUniformLocation(program, "dayMode");
+    candleMode_loc = glGetUniformLocation(program, "candleMode");
+    headlightMode_loc = glGetUniformLocation(program, "headlightMode");
+    lightDir_loc = glGetUniformLocation(program, "lightDir");
+    candlePos_loc = glGetUniformLocation(program, "candlePos");
+    headlightPos_loc = glGetUniformLocation(program, "headlightPos");
+    headlightDir_loc = glGetUniformLocation(program, "headlightDir");
+    spotCosCutOff_loc = glGetUniformLocation(program, "spotCosCutOff");
+    spotExp_loc = glGetUniformLocation(program, "spotExp");
 
     return(shader.isProgramLinked() && shader.isProgramValid());
 }
@@ -198,25 +208,22 @@ void Renderer::activateRenderMeshesShaderProg() {   //GLSL program to draw the m
     glUseProgram(program);
 }
 
-void Renderer::setSpotParam(float* coneDir, const float cutOff) {
-    GLint loc;
-    loc = glGetUniformLocation(program, "coneDir");
-    glUniform4fv(loc, 1, coneDir);
-    loc = glGetUniformLocation(program, "spotCosCutOff");
-    glUniform1f(loc, cutOff);
+void Renderer::setDirLightMode(bool dayLightMode, float direction[3]) {
+	glUniform1i(dayMode_loc, dayLightMode ? 1 : 0);
+	glUniform3fv(lightDir_loc, 1, direction);
 }
 
-void Renderer::setSpotLightMode(bool spotLightMode) {
-    GLint loc;
-    loc = glGetUniformLocation(program, "spotlight_mode");
-    if (spotLightMode)
-        glUniform1i(loc, 1);
-    else
-        glUniform1i(loc, 0);
+void Renderer::setPointLightMode(bool candleMode, float position[6][4]) {
+	glUniform1i(candleMode_loc, candleMode ? 1 : 0);
+	glUniform4fv(candlePos_loc, 6, &position[0][0]);
 }
 
-void Renderer::setLightPos(float* lightPos) {
-    glUniform4fv(lpos_loc, 1, lightPos);
+void Renderer::setSpotLightMode(bool headlightMode, float position[2][4], float direction[3], float spotCosCutOff, float spotExp) {
+	glUniform1i(headlightMode_loc, headlightMode ? 1 : 0);
+	glUniform4fv(headlightPos_loc, 2, &position[0][0]);
+	glUniform3fv(headlightDir_loc, 1, direction);
+	glUniform1f(spotCosCutOff_loc, spotCosCutOff);
+	glUniform1f(spotExp_loc, spotExp);
 }
 
 void Renderer::setTexUnit(int tuId, int texObjArray_pos) {
@@ -301,5 +308,3 @@ void Renderer::renderText(const TextCommand& text) {
         }
     }
 }
-
-

@@ -76,6 +76,26 @@ int startX, startY, tracking = 0;
 long myTime,timebase = 0,frame = 0;
 char s[32];
 
+// Directional light (Day/Night mode)
+bool dayMode = true;
+float lightDir[4] = { -0.5f, -1.0f, -0.5f, 0.0f };
+
+// Point lights (Candles)
+bool candleMode = true;
+float candlePos[6][4] = {
+	{ -50.0f, 15.0f,  50.0f, 1.0f }, // Candle 1
+	{  50.0f, 15.0f, -50.0f, 1.0f }, // Candle 2
+	{ -50.0f, 15.0f, -50.0f, 1.0f }, // Candle 3
+	{  50.0f, 15.0f,  50.0f, 1.0f }, // Candle 4
+	{   0.0f, 15.0f, -50.0f, 1.0f }, // Candle 5
+	{   0.0f, 15.0f,  50.0f, 1.0f }  // Candle 6
+};
+
+// Spotlights (Headlights)
+bool headlightMode = false;
+float spotCosCutOff = 35.0f;
+float spotEx = 8.0f;
+
 //float lightPos[4] = {4.0f, 5.0f, 2.0f, 1.0f};
 float lightPos[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
 
@@ -147,9 +167,7 @@ void drawCenteredObject(
 	int meshID,
 	float posX, float posY, float posZ,
 	float scaleX, float scaleY, float scaleZ,
-	float rotX = 0.0f,
-	float rotY = 0.0f,
-	float rotZ = 0.0f,
+	float rotX = 0.0f, float rotY = 0.0f, float rotZ = 0.0f,
 	int texMode = 0)
 {
 	mu.pushMatrix(gmu::MODEL);
@@ -439,6 +457,7 @@ void renderSim(void) {
 	renderer.setTexUnit(0, 0);
 	renderer.setTexUnit(1, 1);
 	renderer.setTexUnit(2, 2);
+	renderer.setTexUnit(3, 3);
 
 
 	/* antigo (lightDemo)
@@ -450,17 +469,6 @@ void renderSim(void) {
 
 
 	*/
-
-	//send the light position in eye coordinates
-	renderer.setLightPos(lightPos); //efeito capacete do mineiro, ou seja lighPos foi definido em eye coord 
-
-	//float lposAux[4];
-	//mu.multMatrixPoint(gmu::VIEW, lightPos, lposAux);   //lightPos definido em World Coord so is converted to eye space
-	//renderer.setLightPos(lposAux);
-
-	//Spotlight settings
-	renderer.setSpotLightMode(spotlight_mode);
-	renderer.setSpotParam(coneDir, 0.93);
 
 	// Geometry parameters to scale and translate the objects in the scene
 	float tableWidth = 150.0f, tableHeight = 1.0f, tableDepth = 150.0f;
@@ -474,34 +482,86 @@ void renderSim(void) {
 
 	carBarbie.y = roadPosY + roadHeight * 0.5f + 0.2f;
 
-	//Reset da MODEL e inicia a camara
+	// Reset the model matrix and set up the camera based on the table dimensions
 	mu.loadIdentity(gmu::MODEL);
 	setupCamera(tableWidth, tableDepth, tablePosY);
 
+	// Set directional light mode (day/night) and transform the light direction to eye space
+	float dirEye[3];
+	float dirAux[4];
+	mu.multMatrixPoint(gmu::VIEW, lightDir, dirAux);
+	dirEye[0] = dirAux[0]; dirEye[1] = dirAux[1]; dirEye[2] = dirAux[2];
+	renderer.setDirLightMode(dayMode, dirEye);
 
+	// Set point light mode (candles) and transform the candle positions to eye space
+	float candleEye[6][4];
+	for (int i = 0; i < 6; i++) {
+		float aux[4];
+		mu.multMatrixPoint(gmu::VIEW, candlePos[i], aux);
+		candleEye[i][0] = aux[0]; candleEye[i][1] = aux[1]; candleEye[i][2] = aux[2]; candleEye[i][3] = aux[3];
+	}
+	renderer.setPointLightMode(candleMode, candleEye);
 
+	// Set spot light mode (headlights) and transform the spotlight positions and direction to eye space
+	float DEG2RAD = 3.14159265f / 180.0f; // Conversion factor from degrees to radians
+
+	float carAngleRad = carBarbie.angle * DEG2RAD;
+	float cosA = cosf(carAngleRad), sinA = sinf(carAngleRad); // Calculate the cosine and sine of the car's angle in radians
+
+	// Tilt the headlights downwards so that they illuminate the road ahead
+	float tiltRad = -15.0f * DEG2RAD;
+	float cosT = cosf(tiltRad), sinT = sinf(tiltRad); // Calculate the cosine and sine of the tilt angle in radians
+
+	// Calculate the forward direction of the headlights in world space, taking into account the car's orientation and the tilt angle
+	float fwdWorld[4] = { sinA * cosT, sinT, cosA * cosT, 0.0f };
+	float spotDirEyeAux[4];
+	mu.multMatrixPoint(gmu::VIEW, fwdWorld, spotDirEyeAux);
+	float spotDirEye[3] = { spotDirEyeAux[0], spotDirEyeAux[1], spotDirEyeAux[2] };
+
+	// Same local positions for the left and right headlights
+	float localPos[2][3] = {
+		{ -1.7f, 1.18f, 3.3f }, // esquerdo
+		{  1.7f, 1.18f, 3.3f }  // direito
+	};
+
+	float spotPosEye[2][4];
+	for (int i = 0; i < 2; i++) {
+		float lx = localPos[i][0], ly = localPos[i][1], lz = localPos[i][2];
+
+		// Transform the local headlight position to world space, taking into account the car's position and orientation
+		float posWorld[4] = {
+			carBarbie.x + lx * cosA + lz * sinA,
+			carBarbie.y + ly,
+			carBarbie.z - lx * sinA + lz * cosA,
+			1.0f
+		};
+		mu.multMatrixPoint(gmu::VIEW, posWorld, spotPosEye[i]); // escreve direto no destino
+	}
+
+	float cosCutOff = cosf(spotCosCutOff * DEG2RAD);
+	renderer.setSpotLightMode(headlightMode, spotPosEye, spotDirEye, cosCutOff, spotEx);
 
 	// Draw the table - myMeshes[0] contains the cube object
 	drawObject(0, 0.0f,  tablePosY, 0.0f, tableWidth, tableHeight, tableDepth);
 
 	// Draw the road - myMeshes[1] contains the cube object
-	drawObject(1,  60.0f, roadPosY,        -5.0f,  roadWidth, roadHeight, 70.0f);	      // 1: Start road
-	drawObject(1,  30.0f, roadPosY,         35.0f, 70.0f,     roadHeight, roadWidth);	  // 2: Horizontal road
-	drawObject(1,  0.0f,  roadPosY + 7.5f,  14.0f, roadWidth, roadHeight, 40.0f, 25.0f);  // 3: Inclined vertical road
-	drawObject(1,  0.0f,  roadPosY,        -25.0f, roadWidth, roadHeight, 50.0f);		  // 4: Vertical road
-	drawObject(1, -30.0f, roadPosY,        -55.0f, 70.0f,     roadHeight, roadWidth);	  // 5: Horizontal road
-	drawObject(1, -60.0f, roadPosY + 2.5f, -40.5f, roadWidth, roadHeight, 20.0f, -15.0f); // 6: Inclined vertical road
-	drawObject(1, -60.0f, roadPosY + 5.0f, -26.0f, roadWidth, roadHeight, 10.0f);	      // 7: Vertical road
-	drawObject(1, -60.0f, roadPosY + 7.5f, -11.5f, roadWidth, roadHeight, 20.0f, -15.0f); // 8: Inclined vertical road
-	drawObject(1, -60.0f, roadPosY + 10.0f, 3.0f,  roadWidth, roadHeight, 10.0f);	      // 9: Vertical road
-	drawObject(1, -60.0f, roadPosY + 7.5f,  17.5f, roadWidth, roadHeight, 20.0f, 15.0f);  // 10: Inclined vertical road
-	drawObject(1, -60.0f, roadPosY + 5.0f,  32.0f, roadWidth, roadHeight, 10.0f);	      // 11: Vertical road
-	drawObject(1, -60.0f, roadPosY + 2.5f,  46.5f, roadWidth, roadHeight, 20.0f, 15.0f);  // 12: Inclined vertical road
-	drawObject(1, -40.0f, roadPosY,		    60.0f, 50.0f,     roadHeight, roadWidth);	  // 13: Horizontal road
-	drawObject(1, -20.0f, roadPosY,         40.0f, roadWidth, roadHeight, 30.0f);		  // 14: Vertical road
-	drawObject(1,  10.0f, roadPosY,			20.0f, 70.0f,     roadHeight, roadWidth);	  // 15: Horizontal road
-	drawObject(1,  40.0f, roadPosY,        -12.5f, roadWidth, roadHeight, 55.0f);		  // 16: Vertical road
-	drawObject(1,  50.0f, roadPosY,        -45.0f, 30.0f,     roadHeight, roadWidth);	  // 17: Horizontal road
+	drawObject(1,  60.0f, roadPosY,        -5.0f,  roadWidth, roadHeight, 70.0f,	 0.0f,  4);	// 1: Start road
+	drawObject(1,  30.0f, roadPosY,         35.0f, 70.0f,     roadHeight, roadWidth, 0.0f,  4);	// 2: Horizontal road
+	drawObject(1,  0.0f,  roadPosY + 7.5f,  14.0f, roadWidth, roadHeight, 40.0f,	 25.0f, 4); // 3: Inclined vertical road
+	drawObject(1,  0.0f,  roadPosY,        -25.0f, roadWidth, roadHeight, 50.0f,	 0.0f,  4);	// 4: Vertical road
+	drawObject(1, -30.0f, roadPosY,        -55.0f, 70.0f,     roadHeight, roadWidth, 0.0f,  4);	// 5: Horizontal road
+	drawObject(1, -60.0f, roadPosY + 2.5f, -40.5f, roadWidth, roadHeight, 20.0f,	-15.0f, 4); // 6: Inclined vertical road
+	drawObject(1, -60.0f, roadPosY + 5.0f, -26.0f, roadWidth, roadHeight, 10.0f,	 0.0f,  4);	// 7: Vertical road
+	drawObject(1, -60.0f, roadPosY + 7.5f, -11.5f, roadWidth, roadHeight, 20.0f,	-15.0f, 4); // 8: Inclined vertical road
+	drawObject(1, -60.0f, roadPosY + 10.0f, 3.0f,  roadWidth, roadHeight, 10.0f,	 0.0f,  4);	// 9: Vertical road
+	drawObject(1, -60.0f, roadPosY + 7.5f,  17.5f, roadWidth, roadHeight, 20.0f,	 15.0f, 4); // 10: Inclined vertical road
+	drawObject(1, -60.0f, roadPosY + 5.0f,  32.0f, roadWidth, roadHeight, 10.0f,	 0.0f,  4);	// 11: Vertical road
+	drawObject(1, -60.0f, roadPosY + 2.5f,  46.5f, roadWidth, roadHeight, 20.0f,	 15.0f, 4); // 12: Inclined vertical road
+	drawObject(1, -40.0f, roadPosY,		    60.0f, 50.0f,     roadHeight, roadWidth, 0.0f,  4);	// 13: Horizontal road
+	drawObject(1, -20.0f, roadPosY,         40.0f, roadWidth, roadHeight, 30.0f,	 0.0f,  4); // 14: Vertical road
+	drawObject(1,  10.0f, roadPosY,			20.0f, 70.0f,     roadHeight, roadWidth, 0.0f,  4);	// 15: Horizontal road
+	drawObject(1,  40.0f, roadPosY,        -12.5f, roadWidth, roadHeight, 55.0f,	 0.0f,  4);	// 16: Vertical road
+	drawObject(1,  50.0f, roadPosY,        -45.0f, 30.0f,     roadHeight, roadWidth, 0.0f,  4);	// 17: Horizontal road
 
 	// Draw the margins - myMeshes[2] contains the cube object
 	drawObject(2,  55.0f, marginPosY,        -5.0f,  marginWidth, marginHeight, 70.0f);         // 1.1: Left start road margin
@@ -589,22 +649,31 @@ void processKeys(unsigned char key, int xx, int yy)
 			glutLeaveMainLoop();
 			break;
 
-		case 'c': 
+		case 'v':
+		case 'V':
 			printf("Camera Spherical Coordinates (%f, %f, %f)\n", alpha, _beta, r);
 			break;
 
-		case 'l':   //toggle spotlight mode
-			if (!spotlight_mode) {
-				spotlight_mode = true;
-				printf("Point light disabled. Spot light enabled\n");
-			}
-			else {
-				spotlight_mode = false;
-				printf("Spot light disabled. Point light enabled\n");
-			}
+		case 'n':
+		case 'N':
+			dayMode = !dayMode;
+			printf("Day mode: %s\n", dayMode ? "ON" : "OFF");
+			break;
+
+		case 'c':
+		case 'C':
+			candleMode = !candleMode;
+			printf("Candle mode: %s\n", candleMode ? "ON" : "OFF");
+			break;
+
+		case 'h':
+		case 'H':
+			headlightMode = !headlightMode;
+			printf("Headlights: %s\n", headlightMode ? "ON" : "OFF");
 			break;
 
 		case 'r':    //reset
+		case 'R':
 			alpha = 57.0f; _beta = 18.0f;  // Camera Spherical Coordinates
 			r = 45.0f;
 			camX = r * sin(alpha * 3.14f / 180.0f) * cos(_beta * 3.14f / 180.0f);
@@ -612,11 +681,14 @@ void processKeys(unsigned char key, int xx, int yy)
 			camY = r * sin(_beta * 3.14f / 180.0f);
 			break;
 
-		case 'm': glEnable(GL_MULTISAMPLE); break;
-		case 'n': glDisable(GL_MULTISAMPLE); break;
+		case 'j':
+		case 'J':
+			glEnable(GL_MULTISAMPLE); break;
+		case 'k':
+		case 'K':
+			glDisable(GL_MULTISAMPLE); break;
 	}
 }
-
 
 // ------------------------------------------------------------
 //
@@ -693,7 +765,6 @@ void processMouseMotion(int xx, int yy)
 //	glutPostRedisplay();
 }
 
-
 void mouseWheel(int wheel, int direction, int x, int y) {
 
 	r += direction * 0.1f;
@@ -707,7 +778,6 @@ void mouseWheel(int wheel, int direction, int x, int y) {
 //  uncomment this if not using an idle or refresh func
 //	glutPostRedisplay();
 }
-
 
 //
 // Scene building with basic geometry
@@ -729,6 +799,7 @@ void buildScene()
 	renderer.TexObjArray.texture2D_Loader("assets/stone.tga");
 	renderer.TexObjArray.texture2D_Loader("assets/checker.png");
 	renderer.TexObjArray.texture2D_Loader("assets/lightwood.tga");
+	renderer.TexObjArray.texture2D_Loader("assets/road.jpg");
 
 	//Scene geometry with triangle meshes
 

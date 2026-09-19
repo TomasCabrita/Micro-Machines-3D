@@ -52,17 +52,15 @@ public:
 
   void renderText(const TextCommand &text);
 
-  void setLightPos(float *lightPos);
+  void setDirLightMode(bool dayLightMode, float direction[3]);
 
-  void setSpotParam(float *coneDir, float cutOff);
+  void setPointLightMode(bool candleMode, float position[6][4]);
 
-  void setSpotLightMode(bool spotLightMode);
+  void setSpotLightMode(bool headlightMode, float position[2][4], float direction[3], float spotCosCutOff, float spotExp);
 
   void setTexUnit(int tuId, int texObjArray_pos);
 
-
-
-  //Vector with meshes
+  // Vector with meshes
   std::vector<struct MyMesh> myMeshes;
 
   /// Object of class Texture that manage an array of Texture Objects 
@@ -70,22 +68,26 @@ public:
 
 private:
 
-  //Render meshes GLSL program
+  // Render meshes GLSL program
   GLuint program;
 
   // Text font rasterizer GLSL program
   GLuint textProgram;
 
-  GLint pvm_loc, vm_loc, normal_loc, lpos_loc, texMode_loc;
+  GLint pvm_loc, vm_loc, normal_loc, texMode_loc;
   GLint tex_loc[MAX_TEXTURES];
 
-  //render font GLSL program variable locations and VAO
+  // Render font GLSL program variable locations and VAO
   GLint fontPvm_loc, textColor_loc;
   GLuint textVAO, textVBO[2];
 
+  // Light location variables
+  GLint dayMode_loc, candleMode_loc, headlightMode_loc;
+  GLint lightDir_loc, candlePos_loc, headlightPos_loc, headlightDir_loc, spotCosCutOff_loc, spotExp_loc;
+
     struct Font {
         float size;
-        GLuint textureId;    //font atlas texture object ID stored in TexObjArray
+        GLuint textureId;    // Font atlas texture object ID stored in TexObjArray
         stbtt_fontinfo info;
         stbtt_packedchar packedChars[96];
         stbtt_aligned_quad alignedQuads[96];
