@@ -247,6 +247,8 @@ void Renderer::renderMesh(const dataMesh& data) {
     glUniform4fv(loc, 1, myMeshes[data.meshID].mat.diffuse);
     loc = glGetUniformLocation(program, "mat.specular");
     glUniform4fv(loc, 1, myMeshes[data.meshID].mat.specular);
+    loc = glGetUniformLocation(program, "mat.emissive");
+    glUniform4fv(loc, 1, myMeshes[data.meshID].mat.emissive);
     loc = glGetUniformLocation(program, "mat.shininess");
     glUniform1f(loc, myMeshes[data.meshID].mat.shininess);
 

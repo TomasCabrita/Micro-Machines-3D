@@ -111,8 +111,13 @@ void main() {
 		}
 	}
 
+	vec4 emission = vec4(0.0);
+
+	if (headlightMode)
+		emission = mat.emissive;
+
 	if (texMode == 0) // No texturing
-		colorOut = vec4(max(totalIntensity * mat.diffuse + totalSpecular, mat.ambient).rgb, 1.0);
+		colorOut = vec4((max(totalIntensity * mat.diffuse + totalSpecular, mat.ambient) + emission).rgb, 1.0);
 
 	else if (texMode == 1) // Modulate diffuse color with texel color
 	{
