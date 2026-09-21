@@ -115,7 +115,7 @@ const int CAR_PLATE_MESH = 14;  // matricula
 
 struct Car {
 	// Posição no mundo
-	float x = 60.0f;
+	float x = 70.0f;
 	float y = 0.0f;
 	float z = -15.0f;
 
@@ -459,22 +459,17 @@ void renderSim(void) {
 	renderer.setTexUnit(2, 2);
 	renderer.setTexUnit(3, 3);
 
-
-	/* antigo (lightDemo)
-	// load identity matrices
-	mu.loadIdentity(gmu::VIEW);
-	mu.loadIdentity(gmu::MODEL);
-	// set the camera using a function similar to gluLookAt
-	mu.lookAt(camX, camY, camZ, 0, 0, 0, 0, 1, 0);
-
-
-	*/
+	//// load identity matrices
+	//mu.loadIdentity(gmu::VIEW);
+	//mu.loadIdentity(gmu::MODEL);
+	//// set the camera using a function similar to gluLookAt
+	//mu.lookAt(camX, camY, camZ, 0, 0, 0, 0, 1, 0);
 
 	// Geometry parameters to scale and translate the objects in the scene
-	float tableWidth = 150.0f, tableHeight = 1.0f, tableDepth = 150.0f;
+	float tableWidth = 175.0f, tableHeight = 1.0f, tableDepth = 175.0f;
 	float tablePosY = -1.0f;
 
-	float roadWidth = 10.0f, roadHeight = 0.1f;
+	float roadWidth = 20.0f, roadHeight = 0.1f;
 	float roadPosY = tablePosY * 0.5f;
 
 	float marginWidth = 1.0f, marginHeight = 1.0f;
@@ -520,8 +515,8 @@ void renderSim(void) {
 
 	// Same local positions for the left and right headlights
 	float localPos[2][3] = {
-		{ -1.7f, 1.18f, 3.3f }, // esquerdo
-		{  1.7f, 1.18f, 3.3f }  // direito
+		{ -1.7f, 1.18f, 3.3f }, // left
+		{  1.7f, 1.18f, 3.3f }  // right
 	};
 
 	float spotPosEye[2][4];
@@ -535,7 +530,7 @@ void renderSim(void) {
 			carBarbie.z - lx * sinA + lz * cosA,
 			1.0f
 		};
-		mu.multMatrixPoint(gmu::VIEW, posWorld, spotPosEye[i]); // escreve direto no destino
+		mu.multMatrixPoint(gmu::VIEW, posWorld, spotPosEye[i]);
 	}
 
 	float cosCutOff = cosf(spotCosCutOff * DEG2RAD);
@@ -545,69 +540,49 @@ void renderSim(void) {
 	drawObject(0, 0.0f,  tablePosY, 0.0f, tableWidth, tableHeight, tableDepth);
 
 	// Draw the road - myMeshes[1] contains the cube object
-	drawObject(1,  60.0f, roadPosY,        -5.0f,  roadWidth, roadHeight, 70.0f,	 0.0f,  4);	// 1: Start road
-	drawObject(1,  30.0f, roadPosY,         35.0f, 70.0f,     roadHeight, roadWidth, 0.0f,  4);	// 2: Horizontal road
-	drawObject(1,  0.0f,  roadPosY + 7.5f,  14.0f, roadWidth, roadHeight, 40.0f,	 25.0f, 4); // 3: Inclined vertical road
-	drawObject(1,  0.0f,  roadPosY,        -25.0f, roadWidth, roadHeight, 50.0f,	 0.0f,  4);	// 4: Vertical road
-	drawObject(1, -30.0f, roadPosY,        -55.0f, 70.0f,     roadHeight, roadWidth, 0.0f,  4);	// 5: Horizontal road
-	drawObject(1, -60.0f, roadPosY + 2.5f, -40.5f, roadWidth, roadHeight, 20.0f,	-15.0f, 4); // 6: Inclined vertical road
-	drawObject(1, -60.0f, roadPosY + 5.0f, -26.0f, roadWidth, roadHeight, 10.0f,	 0.0f,  4);	// 7: Vertical road
-	drawObject(1, -60.0f, roadPosY + 7.5f, -11.5f, roadWidth, roadHeight, 20.0f,	-15.0f, 4); // 8: Inclined vertical road
-	drawObject(1, -60.0f, roadPosY + 10.0f, 3.0f,  roadWidth, roadHeight, 10.0f,	 0.0f,  4);	// 9: Vertical road
-	drawObject(1, -60.0f, roadPosY + 7.5f,  17.5f, roadWidth, roadHeight, 20.0f,	 15.0f, 4); // 10: Inclined vertical road
-	drawObject(1, -60.0f, roadPosY + 5.0f,  32.0f, roadWidth, roadHeight, 10.0f,	 0.0f,  4);	// 11: Vertical road
-	drawObject(1, -60.0f, roadPosY + 2.5f,  46.5f, roadWidth, roadHeight, 20.0f,	 15.0f, 4); // 12: Inclined vertical road
-	drawObject(1, -40.0f, roadPosY,		    60.0f, 50.0f,     roadHeight, roadWidth, 0.0f,  4);	// 13: Horizontal road
-	drawObject(1, -20.0f, roadPosY,         40.0f, roadWidth, roadHeight, 30.0f,	 0.0f,  4); // 14: Vertical road
-	drawObject(1,  10.0f, roadPosY,			20.0f, 70.0f,     roadHeight, roadWidth, 0.0f,  4);	// 15: Horizontal road
-	drawObject(1,  40.0f, roadPosY,        -12.5f, roadWidth, roadHeight, 55.0f,	 0.0f,  4);	// 16: Vertical road
-	drawObject(1,  50.0f, roadPosY,        -45.0f, 30.0f,     roadHeight, roadWidth, 0.0f,  4);	// 17: Horizontal road
+	drawObject(1,  70.0f, roadPosY, -5.0f,  roadWidth, roadHeight, 90.0f,	  0.0f, 4); // 1: Start road
+	drawObject(1,  40.0f, roadPosY,  50.0f, 80.0f,     roadHeight, roadWidth, 0.0f, 4); // 2: Horizontal road
+	drawObject(1, -5.0f,  roadPosY,  30.0f, 50.0f,	   roadHeight, roadWidth, 0.0f, 4);	// 3: Horizontal road
+	drawObject(1, -20.0f, roadPosY,  50.0f, roadWidth, roadHeight, 20.0f,     0.0f, 4); // 4: Vertical road
+	drawObject(1, -45.0f, roadPosY,  70.0f, 70.0f,	   roadHeight, roadWidth, 0.0f, 4); // 5: Horizontal road
+	drawObject(1, -70.0f, roadPosY,  0.0f,  roadWidth, roadHeight, 120.0f,    0.0f, 4); // 6: Vertical road
+	drawObject(1, -35.0f, roadPosY, -70.0f, 90.0f,	   roadHeight, roadWidth, 0.0f, 4); // 7: Horizontal road
+	drawObject(1,  0.0f,  roadPosY, -35.0f, roadWidth, roadHeight, 50.0f,	  0.0f, 4); // 8: Vertical road
+	drawObject(1,  20.0f, roadPosY,  0.0f,  60.0f,     roadHeight, roadWidth, 0.0f, 4); // 9: Horizontal road
+	drawObject(1,  40.0f, roadPosY, -30.0f, roadWidth, roadHeight, 40.0f,	  0.0f, 4); // 10: Vertical road
+	drawObject(1,  55.0f, roadPosY, -60.0f, 50.0f,     roadHeight, roadWidth, 0.0f, 4); // 11: Horizontal road
 
 	// Draw the margins - myMeshes[2] contains the cube object
-	drawObject(2,  55.0f, marginPosY,        -5.0f,  marginWidth, marginHeight, 70.0f);         // 1.1: Left start road margin
-	drawObject(2,  65.0f, marginPosY,        -5.0f,  marginWidth, marginHeight, 90.0f);         // 1.2: Right start road margin
-	drawObject(2,  30.0f, marginPosY,         30.0f, 50.0f,       marginHeight, marginWidth);   // 2.1: Front horizontal road margin
-	drawObject(2,  30.0f, marginPosY,         40.0f, 70.0f,       marginHeight, marginWidth);   // 2.2: Back horizontal road maring
-	drawObject(2, -5.0f,  marginPosY,         35.0f, marginWidth, marginHeight, 10.0f);         // 2.3: Left horizontal road margin
-	drawObject(2, -5.0f,  marginPosY + 7.5f,  14.0f, marginWidth, marginHeight, 40.0f, 25.0f);  // 3.1: Left inclined vertical road margin
-	drawObject(2,  5.0f,  marginPosY + 7.5f,  14.0f, marginWidth, marginHeight, 40.0f, 25.0f);  // 3.2: Right inclined vertical road margin
-	drawObject(2,  0.0f,  marginPosY,         0.0f,  10.0f,       marginHeight, marginWidth);   // 4.1: Back vertical road margin
-	drawObject(2, -5.0f,  marginPosY,        -25.0f, marginWidth, marginHeight, 50.0f);		    // 4.2: Left vertical road margin
-	drawObject(2,  5.0f,  marginPosY,        -30.0f, marginWidth, marginHeight, 60.0f);		    // 4.3: Right vertical road margin
-	drawObject(2, -30.0f, marginPosY,        -60.0f, 70.0f,       marginHeight, marginWidth);   // 5.1: Front horizontal road margin
-	drawObject(2, -30.0f, marginPosY,        -50.0f, 50.0f,       marginHeight, marginWidth);   // 5.2: Back horizontal road margin
-	drawObject(2, -65.0f, marginPosY,        -55.0f, marginWidth, marginHeight, 10.0f);         // 5.3: Left horizontal road margin
-	drawObject(2, -65.0f, marginPosY + 2.5f, -40.5f, marginWidth, marginHeight, 20.0f, -15.0f); // 6.1: Left inclined vertical road margin
-	drawObject(2, -55.0f, marginPosY + 2.5f, -40.5f, marginWidth, marginHeight, 20.0f, -15.0f); // 6.2: Right inclined vertical road margin
-	drawObject(2, -65.0f, marginPosY + 5.0f, -26.0f, marginWidth, marginHeight, 10.0f);	        // 7.1: Left vertical road margin
-	drawObject(2, -55.0f, marginPosY + 5.0f, -26.0f, marginWidth, marginHeight, 10.0f);	        // 7.2: Right vertical road margin
-	drawObject(2, -65.0f, marginPosY + 7.5f, -11.5f, marginWidth, marginHeight, 20.0f, -15.0f); // 8.1: Left inclined vertical road margin
-	drawObject(2, -55.0f, marginPosY + 7.5f, -11.5f, marginWidth, marginHeight, 20.0f, -15.0f); // 8.2: Right inclined vertical road margin
-	drawObject(2, -65.0f, marginPosY + 10.0f, 3.0f,  marginWidth, marginHeight, 10.0f);	        // 9.1: Left vertical road margin
-	drawObject(2, -55.0f, marginPosY + 10.0f, 3.0f,  marginWidth, marginHeight, 10.0f);	        // 9.2: Right vertical road margin
-	drawObject(2, -65.0f, marginPosY + 7.5f,  17.5f, marginWidth, marginHeight, 20.0f, 15.0f);  // 10.1: Left inclined vertical road margin
-	drawObject(2, -55.0f, marginPosY + 7.5f,  17.5f, marginWidth, marginHeight, 20.0f, 15.0f);  // 10.2: Right inclined vertical road margin
-	drawObject(2, -65.0f, marginPosY + 5.0f,  32.0f, marginWidth, marginHeight, 10.0f);	        // 11.1: Left vertical road margin
-	drawObject(2, -55.0f, marginPosY + 5.0f,  32.0f, marginWidth, marginHeight, 10.0f);	        // 11.2: Right vertical road margin
-	drawObject(2, -65.0f, marginPosY + 2.5f,  46.5f, marginWidth, marginHeight, 20.0f, 15.0f);  // 12.1: Left inclined vertical road margin
-	drawObject(2, -55.0f, marginPosY + 2.5f,  46.5f, marginWidth, marginHeight, 20.0f, 15.0f);  // 12.2: Right inclined vertical road margin
-	drawObject(2, -40.0f, marginPosY,         55.0f, 30.0f,       marginHeight, marginWidth);	// 13.1: Front horizontal road margin
-	drawObject(2, -40.0f, marginPosY,         65.0f, 50.0f,       marginHeight, marginWidth);	// 13.2: Back horizontal road margin
-	drawObject(2, -65.0f, marginPosY,         60.0f, marginWidth, marginHeight, 10.0f);	        // 13.3: Left horizontal road margin
-	drawObject(2, -25.0f, marginPosY,         35.0f, marginWidth, marginHeight, 40.0f);		    // 14.1: Left vertical road margin
-	drawObject(2, -15.0f, marginPosY,         45.0f, marginWidth, marginHeight, 40.0f);		    // 14.2: Right vertical road margin
-	drawObject(2,  5.0f,  marginPosY,         15.0f, 60.0f,       marginHeight, marginWidth);	// 15.1: Front horizontal road margin
-	drawObject(2,  15.0f, marginPosY,         25.0f, 60.0f,       marginHeight, marginWidth);	// 15.2: Back horizontal road margin
-	drawObject(2,  35.0f, marginPosY,        -17.5f, marginWidth, marginHeight, 65.0f);		    // 16.1: Left vertical road margin
-	drawObject(2,  45.0f, marginPosY,        -7.5f,  marginWidth, marginHeight, 65.0f);		    // 16.2: Right vertical road margin
-	drawObject(2,  50.0f, marginPosY,        -50.0f, 30.0f,       marginHeight, marginWidth);	// 17.1: Front horizontal road margin
-	drawObject(2,  50.0f, marginPosY,        -40.0f, 10.0f,       marginHeight, marginWidth);	// 17.2: Back horizontal road margin
+	drawObject(2,  60.0f, marginPosY, -5.0f,  marginWidth, marginHeight, 90.0f);       // 1.1: Left start road margin
+	drawObject(2,  80.0f, marginPosY, -5.0f,  marginWidth, marginHeight, 130.0f);      // 1.2: Right start road margin
+	drawObject(2,  40.0f, marginPosY,  40.0f, 40.0f,       marginHeight, marginWidth); // 2.1: Front horizontal road margin
+	drawObject(2,  40.0f, marginPosY,  60.0f, 80.0f,       marginHeight, marginWidth); // 2.2: Back horizontal road maring
+	drawObject(2,  0.0f,  marginPosY,  50.0f, marginWidth, marginHeight, 20.0f);       // 2.3: Left horizontal road margin
+	drawObject(2, -5.0f,  marginPosY,  20.0f, 50.0f,	   marginHeight, marginWidth); // 3.1: Front horizontal road margin
+	drawObject(2, -5.0f,  marginPosY,  40.0f, 10.0f,	   marginHeight, marginWidth); // 3.2: Back horizontal road margin
+	drawObject(2,  20.0f, marginPosY,  30.0f, marginWidth, marginHeight, 20.0f);	   // 3.3: Right horizontal road margin
+	drawObject(2, -30.0f, marginPosY,  40.0f, marginWidth, marginHeight, 40.0f);	   // 4.1: Left vertical road margin
+	drawObject(2, -10.0f, marginPosY,  60.0f, marginWidth, marginHeight, 40.0f);	   // 4.2: Right vertical road margin
+	drawObject(2, -45.0f, marginPosY,  60.0f, 30.0f,       marginHeight, marginWidth); // 5.1: Front horizontal road margin
+	drawObject(2, -45.0f, marginPosY,  80.0f, 70.0f,       marginHeight, marginWidth); // 5.2: Back horizontal road margin
+	drawObject(2, -80.0f, marginPosY,  0.0f,  marginWidth, marginHeight, 160.0f);	   // 6.1: Left vertical road margin
+	drawObject(2, -60.0f, marginPosY,  0.0f,  marginWidth, marginHeight, 120.0f);	   // 6.2: Right vertical road margin
+	drawObject(2, -35.0f, marginPosY, -80.0f, 90.0f,       marginHeight, marginWidth); // 7.1: Front horizontal road margin
+	drawObject(2, -35.0f, marginPosY, -60.0f, 50.0f,       marginHeight, marginWidth); // 7.2: Back horizontal road margin
+	drawObject(2, -10.0f, marginPosY, -25.0f, marginWidth, marginHeight, 70.0f);	   // 8.1: Left vertical road margin
+	drawObject(2,  10.0f, marginPosY, -45.0f, marginWidth, marginHeight, 70.0f);	   // 8.2: Right vertical road margin
+	drawObject(2,  20.0f, marginPosY, -10.0f, 20.0f,       marginHeight, marginWidth); // 9.1: Front horizontal road margin
+	drawObject(2,  20.0f, marginPosY,  10.0f, 60.0f,       marginHeight, marginWidth); // 9.2: Back horizontal road margin
+	drawObject(2,  30.0f, marginPosY, -40.0f, marginWidth, marginHeight, 60.0f);	   // 10.1: Left vertical road margin
+	drawObject(2,  50.0f, marginPosY, -20.0f, marginWidth, marginHeight, 60.0f);	   // 10.2: Right vertical road margin
+	drawObject(2,  55.0f, marginPosY, -70.0f, 50.0f,       marginHeight, marginWidth); // 11.1: Front horizontal road margin
+	drawObject(2,  55.0f, marginPosY, -50.0f, 10.0f,       marginHeight, marginWidth); // 11.2: Back horizontal road margin
 
 	// Draw the start flag and start line
-	drawObject(1, 55.0f, roadPosY + 7.5f,  -5.0f, 1.0f,      15.0f, 1.0f); // 1: Left flag pole
-	drawObject(1, 65.0f, roadPosY + 7.5f,  -5.0f, 1.0f,      15.0f, 1.0f); // 2: Right flag pole
-	drawObject(2, 60.0f, roadPosY + 10.0f, -5.0f, roadWidth, 3.0f,  1.0f); // 3: Flag
-	drawObject(2, 60.0f, roadPosY + 0.1f,  -5.0f, roadWidth, 0.1f,  1.0f); // 4: Start line
+	drawObject(1, 60.0f, roadPosY + 7.5f,  -5.0f, 1.0f,      15.0f, 1.0f); // 1: Left flag pole
+	drawObject(1, 80.0f, roadPosY + 7.5f,  -5.0f, 1.0f,      15.0f, 1.0f); // 2: Right flag pole
+	drawObject(2, 70.0f, roadPosY + 10.0f, -5.0f, roadWidth, 3.0f,  1.0f); // 3: Flag
+	drawObject(2, 70.0f, roadPosY + 0.1f,  -5.0f, roadWidth, 0.1f,  1.0f); // 4: Start line
 
 	drawCar(carBarbie);
 	glutSwapBuffers();
