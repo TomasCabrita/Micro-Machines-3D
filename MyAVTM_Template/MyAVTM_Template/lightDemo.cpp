@@ -58,7 +58,7 @@ float camX, camY, camZ;
 float alpha = 57.0f, _beta = 18.0f;
 float r = 45.0f;
 
-//Cameras (new)
+//Cameras
 //1 = satellite orthographic
 //2 = satellite perspective
 //3 = car following perspective
@@ -83,12 +83,12 @@ float lightDir[4] = { -0.5f, -1.0f, -0.5f, 0.0f };
 // Point lights (Candles)
 bool candleMode = true;
 float candlePos[6][4] = {
-	{ -50.0f, 15.0f,  50.0f, 1.0f }, // Candle 1
-	{  50.0f, 15.0f, -50.0f, 1.0f }, // Candle 2
-	{ -50.0f, 15.0f, -50.0f, 1.0f }, // Candle 3
-	{  50.0f, 15.0f,  50.0f, 1.0f }, // Candle 4
-	{   0.0f, 15.0f, -50.0f, 1.0f }, // Candle 5
-	{   0.0f, 15.0f,  50.0f, 1.0f }  // Candle 6
+	{  55.0f, 15.0f,  35.0f, 1.0f }, // Candle 1
+	{  -5.5f, 15.0f,  52.5f, 1.0f }, // Candle 2
+	{ -48.5f, 15.0f,  55.0f, 1.0f }, // Candle 3
+	{ -37.5f, 15.0f, -55.0f, 1.0f }, // Candle 4
+	{  21.5f, 15.0f, -20.0f, 1.0f }, // Candle 5
+	{  59.5f, 15.0f, -45.0f, 1.0f }  // Candle 6
 };
 
 // Spotlights (Headlights)
@@ -105,13 +105,18 @@ float coneDir[4] = { 0.0f, -0.0f, -1.0f, 0.0f };
 
 bool fontLoaded = false;
 
-
-const int CAR_NORMAL_MESH = 9;   // rosa
-const int CAR_METAL_MESH = 10;  // metal
-const int CAR_GLASS_MESH = 11;  // vidro cinza-azulado
-const int CAR_WHEEL_MESH = 12;  // roda
-const int CAR_LIGHT_MESH = 13;  // farois
-const int CAR_PLATE_MESH = 14;  // matricula
+// Constants for mesh IDs
+const int TABLE_MESH = 0; // table
+const int ROAD_MESH = 1; // road
+const int MARGIN_MESH = 2; // margin
+const int CAR_NORMAL_MESH = 3; // pink
+const int CAR_METAL_MESH = 4; // metal
+const int CAR_GLASS_MESH = 5; // gray-blue glass
+const int CAR_WHEEL_MESH = 6; // tires
+const int CAR_LIGHT_MESH = 7; // headlights
+const int CAR_PLATE_MESH = 8; // plate
+const int CANDLE_BASE_MESH = 9; // candle base
+const int CANDLE_WICK_MESH = 10; // candle wick
 
 struct Car {
 	// Posição no mundo
@@ -475,6 +480,9 @@ void renderSim(void) {
 	float marginWidth = 1.0f, marginHeight = 1.0f;
 	float marginPosY = roadPosY + 0.3f;
 
+	float candleBasePosY = roadPosY + 6.0f;
+	float candleWickPosY = roadPosY + 12.0f + 1.5f;
+
 	carBarbie.y = roadPosY + roadHeight * 0.5f + 0.2f;
 
 	// Reset the model matrix and set up the camera based on the table dimensions
@@ -536,53 +544,67 @@ void renderSim(void) {
 	float cosCutOff = cosf(spotCosCutOff * DEG2RAD);
 	renderer.setSpotLightMode(headlightMode, spotPosEye, spotDirEye, cosCutOff, spotEx);
 
-	// Draw the table - myMeshes[0] contains the cube object
-	drawObject(0, 0.0f,  tablePosY, 0.0f, tableWidth, tableHeight, tableDepth);
+	// Draw the table
+	drawObject(TABLE_MESH, 0.0f,  tablePosY, 0.0f, tableWidth, tableHeight, tableDepth);
 
-	// Draw the road - myMeshes[1] contains the cube object
-	drawObject(1,  70.0f, roadPosY, -5.0f,  roadWidth, roadHeight, 90.0f,	  0.0f, 4); // 1: Start road
-	drawObject(1,  40.0f, roadPosY,  50.0f, 80.0f,     roadHeight, roadWidth, 0.0f, 4); // 2: Horizontal road
-	drawObject(1, -5.0f,  roadPosY,  30.0f, 50.0f,	   roadHeight, roadWidth, 0.0f, 4);	// 3: Horizontal road
-	drawObject(1, -20.0f, roadPosY,  50.0f, roadWidth, roadHeight, 20.0f,     0.0f, 4); // 4: Vertical road
-	drawObject(1, -45.0f, roadPosY,  70.0f, 70.0f,	   roadHeight, roadWidth, 0.0f, 4); // 5: Horizontal road
-	drawObject(1, -70.0f, roadPosY,  0.0f,  roadWidth, roadHeight, 120.0f,    0.0f, 4); // 6: Vertical road
-	drawObject(1, -35.0f, roadPosY, -70.0f, 90.0f,	   roadHeight, roadWidth, 0.0f, 4); // 7: Horizontal road
-	drawObject(1,  0.0f,  roadPosY, -35.0f, roadWidth, roadHeight, 50.0f,	  0.0f, 4); // 8: Vertical road
-	drawObject(1,  20.0f, roadPosY,  0.0f,  60.0f,     roadHeight, roadWidth, 0.0f, 4); // 9: Horizontal road
-	drawObject(1,  40.0f, roadPosY, -30.0f, roadWidth, roadHeight, 40.0f,	  0.0f, 4); // 10: Vertical road
-	drawObject(1,  55.0f, roadPosY, -60.0f, 50.0f,     roadHeight, roadWidth, 0.0f, 4); // 11: Horizontal road
+	// Draw the roads
+	drawObject(ROAD_MESH, 70.0f,  roadPosY, -5.0f,  roadWidth, roadHeight, 90.0f,	  0.0f, 4); // 1: Start road
+	drawObject(ROAD_MESH, 40.0f,  roadPosY, 50.0f,  80.0f,     roadHeight, roadWidth, 0.0f, 4); // 2: Horizontal road
+	drawObject(ROAD_MESH, -5.0f,  roadPosY, 30.0f,  50.0f,	   roadHeight, roadWidth, 0.0f, 4);	// 3: Horizontal road
+	drawObject(ROAD_MESH, -20.0f, roadPosY, 50.0f,  roadWidth, roadHeight, 20.0f,     0.0f, 4); // 4: Vertical road
+	drawObject(ROAD_MESH, -45.0f, roadPosY, 70.0f,  70.0f,	   roadHeight, roadWidth, 0.0f, 4); // 5: Horizontal road
+	drawObject(ROAD_MESH, -70.0f, roadPosY, 0.0f,   roadWidth, roadHeight, 120.0f,    0.0f, 4); // 6: Vertical road
+	drawObject(ROAD_MESH, -35.0f, roadPosY, -70.0f, 90.0f,	   roadHeight, roadWidth, 0.0f, 4); // 7: Horizontal road
+	drawObject(ROAD_MESH, 0.0f,   roadPosY, -35.0f, roadWidth, roadHeight, 50.0f,	  0.0f, 4); // 8: Vertical road
+	drawObject(ROAD_MESH, 20.0f,  roadPosY, 0.0f,   60.0f,     roadHeight, roadWidth, 0.0f, 4); // 9: Horizontal road
+	drawObject(ROAD_MESH, 40.0f,  roadPosY, -30.0f, roadWidth, roadHeight, 40.0f,	  0.0f, 4); // 10: Vertical road
+	drawObject(ROAD_MESH, 55.0f,  roadPosY, -60.0f, 50.0f,     roadHeight, roadWidth, 0.0f, 4); // 11: Horizontal road
 
-	// Draw the margins - myMeshes[2] contains the cube object
-	drawObject(2,  60.0f, marginPosY, -5.0f,  marginWidth, marginHeight, 90.0f);       // 1.1: Left start road margin
-	drawObject(2,  80.0f, marginPosY, -5.0f,  marginWidth, marginHeight, 130.0f);      // 1.2: Right start road margin
-	drawObject(2,  40.0f, marginPosY,  40.0f, 40.0f,       marginHeight, marginWidth); // 2.1: Front horizontal road margin
-	drawObject(2,  40.0f, marginPosY,  60.0f, 80.0f,       marginHeight, marginWidth); // 2.2: Back horizontal road maring
-	drawObject(2,  0.0f,  marginPosY,  50.0f, marginWidth, marginHeight, 20.0f);       // 2.3: Left horizontal road margin
-	drawObject(2, -5.0f,  marginPosY,  20.0f, 50.0f,	   marginHeight, marginWidth); // 3.1: Front horizontal road margin
-	drawObject(2, -5.0f,  marginPosY,  40.0f, 10.0f,	   marginHeight, marginWidth); // 3.2: Back horizontal road margin
-	drawObject(2,  20.0f, marginPosY,  30.0f, marginWidth, marginHeight, 20.0f);	   // 3.3: Right horizontal road margin
-	drawObject(2, -30.0f, marginPosY,  40.0f, marginWidth, marginHeight, 40.0f);	   // 4.1: Left vertical road margin
-	drawObject(2, -10.0f, marginPosY,  60.0f, marginWidth, marginHeight, 40.0f);	   // 4.2: Right vertical road margin
-	drawObject(2, -45.0f, marginPosY,  60.0f, 30.0f,       marginHeight, marginWidth); // 5.1: Front horizontal road margin
-	drawObject(2, -45.0f, marginPosY,  80.0f, 70.0f,       marginHeight, marginWidth); // 5.2: Back horizontal road margin
-	drawObject(2, -80.0f, marginPosY,  0.0f,  marginWidth, marginHeight, 160.0f);	   // 6.1: Left vertical road margin
-	drawObject(2, -60.0f, marginPosY,  0.0f,  marginWidth, marginHeight, 120.0f);	   // 6.2: Right vertical road margin
-	drawObject(2, -35.0f, marginPosY, -80.0f, 90.0f,       marginHeight, marginWidth); // 7.1: Front horizontal road margin
-	drawObject(2, -35.0f, marginPosY, -60.0f, 50.0f,       marginHeight, marginWidth); // 7.2: Back horizontal road margin
-	drawObject(2, -10.0f, marginPosY, -25.0f, marginWidth, marginHeight, 70.0f);	   // 8.1: Left vertical road margin
-	drawObject(2,  10.0f, marginPosY, -45.0f, marginWidth, marginHeight, 70.0f);	   // 8.2: Right vertical road margin
-	drawObject(2,  20.0f, marginPosY, -10.0f, 20.0f,       marginHeight, marginWidth); // 9.1: Front horizontal road margin
-	drawObject(2,  20.0f, marginPosY,  10.0f, 60.0f,       marginHeight, marginWidth); // 9.2: Back horizontal road margin
-	drawObject(2,  30.0f, marginPosY, -40.0f, marginWidth, marginHeight, 60.0f);	   // 10.1: Left vertical road margin
-	drawObject(2,  50.0f, marginPosY, -20.0f, marginWidth, marginHeight, 60.0f);	   // 10.2: Right vertical road margin
-	drawObject(2,  55.0f, marginPosY, -70.0f, 50.0f,       marginHeight, marginWidth); // 11.1: Front horizontal road margin
-	drawObject(2,  55.0f, marginPosY, -50.0f, 10.0f,       marginHeight, marginWidth); // 11.2: Back horizontal road margin
+	// Draw the margins
+	drawObject(MARGIN_MESH, 60.0f,  marginPosY, -5.0f,  marginWidth, marginHeight, 90.0f);       // 1.1: Left start road margin
+	drawObject(MARGIN_MESH, 80.0f,  marginPosY, -5.0f,  marginWidth, marginHeight, 130.0f);      // 1.2: Right start road margin
+	drawObject(MARGIN_MESH, 40.0f,  marginPosY, 40.0f,  40.0f,       marginHeight, marginWidth); // 2.1: Front horizontal road margin
+	drawObject(MARGIN_MESH, 40.0f,  marginPosY, 60.0f,  80.0f,       marginHeight, marginWidth); // 2.2: Back horizontal road maring
+	drawObject(MARGIN_MESH, 0.0f,   marginPosY, 50.0f,  marginWidth, marginHeight, 20.0f);       // 2.3: Left horizontal road margin
+	drawObject(MARGIN_MESH, -5.0f,  marginPosY, 20.0f,  50.0f,	     marginHeight, marginWidth); // 3.1: Front horizontal road margin
+	drawObject(MARGIN_MESH, -5.0f,  marginPosY, 40.0f,  10.0f,	     marginHeight, marginWidth); // 3.2: Back horizontal road margin
+	drawObject(MARGIN_MESH, 20.0f,  marginPosY, 30.0f,  marginWidth, marginHeight, 20.0f);	     // 3.3: Right horizontal road margin
+	drawObject(MARGIN_MESH, -30.0f, marginPosY, 40.0f,  marginWidth, marginHeight, 40.0f);	     // 4.1: Left vertical road margin
+	drawObject(MARGIN_MESH, -10.0f, marginPosY, 60.0f,  marginWidth, marginHeight, 40.0f);	     // 4.2: Right vertical road margin
+	drawObject(MARGIN_MESH, -45.0f, marginPosY, 60.0f,  30.0f,       marginHeight, marginWidth); // 5.1: Front horizontal road margin
+	drawObject(MARGIN_MESH, -45.0f, marginPosY, 80.0f,  70.0f,       marginHeight, marginWidth); // 5.2: Back horizontal road margin
+	drawObject(MARGIN_MESH, -80.0f, marginPosY, 0.0f,   marginWidth, marginHeight, 160.0f);	     // 6.1: Left vertical road margin
+	drawObject(MARGIN_MESH, -60.0f, marginPosY, 0.0f,   marginWidth, marginHeight, 120.0f);	     // 6.2: Right vertical road margin
+	drawObject(MARGIN_MESH, -35.0f, marginPosY, -80.0f, 90.0f,       marginHeight, marginWidth); // 7.1: Front horizontal road margin
+	drawObject(MARGIN_MESH, -35.0f, marginPosY, -60.0f, 50.0f,       marginHeight, marginWidth); // 7.2: Back horizontal road margin
+	drawObject(MARGIN_MESH, -10.0f, marginPosY, -25.0f, marginWidth, marginHeight, 70.0f);	     // 8.1: Left vertical road margin
+	drawObject(MARGIN_MESH, 10.0f,  marginPosY, -45.0f, marginWidth, marginHeight, 70.0f);	     // 8.2: Right vertical road margin
+	drawObject(MARGIN_MESH, 20.0f,  marginPosY, -10.0f, 20.0f,       marginHeight, marginWidth); // 9.1: Front horizontal road margin
+	drawObject(MARGIN_MESH, 20.0f,  marginPosY, 10.0f,  60.0f,       marginHeight, marginWidth); // 9.2: Back horizontal road margin
+	drawObject(MARGIN_MESH, 30.0f,  marginPosY, -40.0f, marginWidth, marginHeight, 60.0f);	     // 10.1: Left vertical road margin
+	drawObject(MARGIN_MESH, 50.0f,  marginPosY, -20.0f, marginWidth, marginHeight, 60.0f);	     // 10.2: Right vertical road margin
+	drawObject(MARGIN_MESH, 55.0f,  marginPosY, -70.0f, 50.0f,       marginHeight, marginWidth); // 11.1: Front horizontal road margin
+	drawObject(MARGIN_MESH, 55.0f,  marginPosY, -50.0f, 10.0f,       marginHeight, marginWidth); // 11.2: Back horizontal road margin
 
 	// Draw the start flag and start line
-	drawObject(1, 60.0f, roadPosY + 7.5f,  -5.0f, 1.0f,      15.0f, 1.0f); // 1: Left flag pole
-	drawObject(1, 80.0f, roadPosY + 7.5f,  -5.0f, 1.0f,      15.0f, 1.0f); // 2: Right flag pole
-	drawObject(2, 70.0f, roadPosY + 10.0f, -5.0f, roadWidth, 3.0f,  1.0f); // 3: Flag
-	drawObject(2, 70.0f, roadPosY + 0.1f,  -5.0f, roadWidth, 0.1f,  1.0f); // 4: Start line
+	drawObject(ROAD_MESH,   60.0f, roadPosY + 7.5f,  -5.0f, 1.0f,      15.0f, 1.0f); // 1: Left flag pole
+	drawObject(ROAD_MESH,   80.0f, roadPosY + 7.5f,  -5.0f, 1.0f,      15.0f, 1.0f); // 2: Right flag pole
+	drawObject(MARGIN_MESH, 70.0f, roadPosY + 10.0f, -5.0f, roadWidth, 3.0f,  1.0f); // 3: Flag
+	drawObject(MARGIN_MESH, 70.0f, roadPosY + 0.1f,  -5.0f, roadWidth, 0.1f,  1.0f); // 4: Start line
+
+	// Draw the 6 candles
+	drawCenteredObject(CANDLE_BASE_MESH, 51.25f, candleBasePosY, 32.25f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0); // 1.1: Candle base
+	drawCenteredObject(CANDLE_WICK_MESH, 51.25f, candleWickPosY, 32.25f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0); // 1.2: Candle wick
+	drawCenteredObject(CANDLE_BASE_MESH, -5.5f,  candleBasePosY, 48.5f,  1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0); // 2.1: Candle base
+	drawCenteredObject(CANDLE_WICK_MESH, -5.5f,  candleWickPosY, 48.5f,  1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0); // 2.2: Candle wick
+	drawCenteredObject(CANDLE_BASE_MESH, -45.5f, candleBasePosY, 50.5f,  1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0); // 3.1: Candle base
+	drawCenteredObject(CANDLE_WICK_MESH, -45.5f, candleWickPosY, 50.5f,  1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0); // 3.2: Candle wick
+	drawCenteredObject(CANDLE_BASE_MESH, -35.5f, candleBasePosY, -50.5f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0); // 4.1: Candle base
+	drawCenteredObject(CANDLE_WICK_MESH, -35.5f, candleWickPosY, -50.5f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0); // 4.2: Candle wick
+	drawCenteredObject(CANDLE_BASE_MESH, 20.5f,  candleBasePosY, -19.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0); // 5.1: Candle base
+	drawCenteredObject(CANDLE_WICK_MESH, 20.5f,  candleWickPosY, -19.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0); // 5.2: Candle wick
+	drawCenteredObject(CANDLE_BASE_MESH, 55.5f,  candleBasePosY, -41.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0); // 6.1: Candle base
+	drawCenteredObject(CANDLE_WICK_MESH, 55.5f,  candleWickPosY, -41.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0); // 6.2: Candle wick
 
 	drawCar(carBarbie);
 	glutSwapBuffers();
@@ -757,16 +779,17 @@ void mouseWheel(int wheel, int direction, int x, int y) {
 //
 // Scene building with basic geometry
 //
-// 0: table cube
-// 1: road cube
-// 2: margin cube
-// 3: cube
-// 4: pawn
-// 5: sphere
-// 6: cylinder
-// 7: cone
-// 8: torus
-// 9: car body cube (red)
+// 0: table (cube)
+// 1: road (cube)
+// 2: margin (cube)
+// 4: car body (cube)
+// 5: metal car parts (cube)
+// 6: car window (cube)
+// 7: car wheel (torus)
+// 8: car headlight (sphere)
+// 9: car plate (cube)
+// 10: candle base (cylinder)
+// 11: candle wick (cylinder)
 
 void buildScene()
 {
@@ -792,7 +815,7 @@ void buildScene()
 	float shininess = 100.0f;
 	int texcount = 0;
 
-	// create geometry and VAO of the table
+	// create geometry and VAO of the table (0)
 	float ambTable[] = { 0.2f, 0.15f, 0.1f, 1.0f };
 	float diffTable[] = { 0.8f, 0.6f, 0.4f, 1.0f };
 	float specTable[] = { 0.8f, 0.8f, 0.8f, 1.0f };
@@ -806,7 +829,7 @@ void buildScene()
 	amesh.mat.texCount = texcount;
 	renderer.myMeshes.push_back(amesh);
 
-	// create geometry and VAO of the road
+	// create geometry and VAO of the road (1)
 	float ambRoad[] = { 0.1f, 0.1f, 0.1f, 1.0f };
 	float diffRoad[] = { 0.4f, 0.4f, 0.4f, 1.0f };
 	float specRoad[] = { 0.8f, 0.8f, 0.8f, 1.0f };
@@ -820,7 +843,7 @@ void buildScene()
 	amesh.mat.texCount = texcount;
 	renderer.myMeshes.push_back(amesh);
 
-	// create geometry and VAO of the road margins
+	// create geometry and VAO of the road margins (2)
 	float ambMargin[] = { 0.2f, 0.0f, 0.15f, 1.0f };
 	float diffMargin[] = { 0.8f, 0.0f, 0.6f, 1.0f };
 	float specMargin[] = { 0.8f, 0.8f, 0.8f, 1.0f };
@@ -831,6 +854,111 @@ void buildScene()
 	memcpy(amesh.mat.specular, specMargin, 4 * sizeof(float));
 	memcpy(amesh.mat.emissive, emissive, 4 * sizeof(float));
 	amesh.mat.shininess = shininess;
+	amesh.mat.texCount = texcount;
+	renderer.myMeshes.push_back(amesh);
+
+	// create geometry and VAO for the car body (3)
+	float ambCar[] = { 0.25f, 0.03f, 0.15f, 1.0f };
+	float diffCar[] = { 0.95f, 0.20f, 0.60f, 1.0f };
+	float specCar[] = { 0.90f, 0.80f, 0.90f, 1.0f };
+	amesh = createCube();
+	memcpy(amesh.mat.ambient, ambCar, 4 * sizeof(float));
+	memcpy(amesh.mat.diffuse, diffCar, 4 * sizeof(float));
+	memcpy(amesh.mat.specular, specCar, 4 * sizeof(float));
+	memcpy(amesh.mat.emissive, emissive, 4 * sizeof(float));
+	amesh.mat.shininess = 100.0f;
+	amesh.mat.texCount = texcount;
+	renderer.myMeshes.push_back(amesh);
+
+	// create geometry and VAO for the metal car parts (4)
+	float ambBumper[] = { 0.04f, 0.04f, 0.05f, 1.0f };
+	float diffBumper[] = { 0.16f, 0.17f, 0.19f, 1.0f };
+	float specBumper[] = { 0.85f, 0.88f, 0.95f, 1.0f };
+	amesh = createCube();
+	memcpy(amesh.mat.ambient, ambBumper, 4 * sizeof(float));
+	memcpy(amesh.mat.diffuse, diffBumper, 4 * sizeof(float));
+	memcpy(amesh.mat.specular, specBumper, 4 * sizeof(float));
+	memcpy(amesh.mat.emissive, emissive, 4 * sizeof(float));
+	amesh.mat.shininess = 180.0f;
+	amesh.mat.texCount = texcount;
+	renderer.myMeshes.push_back(amesh);
+
+	// create geometry and VAO for the car window (5)
+	float ambGlass[] = { 0.08f, 0.12f, 0.16f, 1.0f };
+	float diffGlass[] = { 0.35f, 0.65f, 0.85f, 1.0f };
+	float specGlass[] = { 0.80f, 0.90f, 1.00f, 1.0f };
+	amesh = createCube();
+	memcpy(amesh.mat.ambient, ambGlass, 4 * sizeof(float));
+	memcpy(amesh.mat.diffuse, diffGlass, 4 * sizeof(float));
+	memcpy(amesh.mat.specular, specGlass, 4 * sizeof(float));
+	memcpy(amesh.mat.emissive, emissive, 4 * sizeof(float));
+	amesh.mat.shininess = 220.0f;
+	amesh.mat.texCount = texcount;
+	renderer.myMeshes.push_back(amesh);
+
+	// create geometry and VAO for the car wheels (6)
+	float ambWheel[] = { 0.02f, 0.02f, 0.02f, 1.0f };
+	float diffWheel[] = { 0.06f, 0.06f, 0.07f, 1.0f };
+	float specWheel[] = { 0.20f, 0.20f, 0.22f, 1.0f };
+	amesh = createTorus(0.38f, 0.90f, 20, 20);
+	memcpy(amesh.mat.ambient, ambWheel, 4 * sizeof(float));
+	memcpy(amesh.mat.diffuse, diffWheel, 4 * sizeof(float));
+	memcpy(amesh.mat.specular, specWheel, 4 * sizeof(float));
+	memcpy(amesh.mat.emissive, emissive, 4 * sizeof(float));
+	amesh.mat.shininess = 40.0f;
+	amesh.mat.texCount = texcount;
+	renderer.myMeshes.push_back(amesh);
+
+	// create geometry and VAO for the car headlights (7)
+	float ambHeadlight[] = { 0.35f, 0.35f, 0.30f, 1.0f };
+	float diffHeadlight[] = { 1.00f, 0.95f, 0.80f, 1.0f };
+	float specHeadlight[] = { 1.00f, 1.00f, 1.00f, 1.0f };
+	float emissiveHeadlight[] = { 0.25f, 0.23f, 0.18f, 1.0f };
+	amesh = createSphere(1.0f, 20);
+	memcpy(amesh.mat.ambient, ambHeadlight, 4 * sizeof(float));
+	memcpy(amesh.mat.diffuse, diffHeadlight, 4 * sizeof(float));
+	memcpy(amesh.mat.specular, specHeadlight, 4 * sizeof(float));
+	memcpy(amesh.mat.emissive, emissiveHeadlight, 4 * sizeof(float));
+	amesh.mat.shininess = 200.0f;
+	amesh.mat.texCount = texcount;
+	renderer.myMeshes.push_back(amesh);
+
+	// create geometry and VAO for the car plate (8)
+	float ambPlate[] = { 0.30f, 0.30f, 0.30f, 1.0f };
+	float diffPlate[] = { 0.90f, 0.90f, 0.90f, 1.0f };
+	float specPlate[] = { 0.25f, 0.25f, 0.25f, 1.0f };
+	amesh = createCube();
+	memcpy(amesh.mat.ambient, ambPlate, 4 * sizeof(float));
+	memcpy(amesh.mat.diffuse, diffPlate, 4 * sizeof(float));
+	memcpy(amesh.mat.specular, specPlate, 4 * sizeof(float));
+	memcpy(amesh.mat.emissive, emissive, 4 * sizeof(float));
+	amesh.mat.shininess = 40.0f;
+	amesh.mat.texCount = texcount;
+	renderer.myMeshes.push_back(amesh);
+
+	// create geometry and VAO for the candle base (9)
+	float ambWax[] = { 0.35f, 0.32f, 0.25f, 1.0f };
+	float diffWax[] = { 0.95f, 0.90f, 0.75f, 1.0f };
+	float specWax[] = { 0.30f, 0.30f, 0.25f, 1.0f };
+	amesh = createCylinder(12.0f, 2.0f, 20);
+	memcpy(amesh.mat.ambient, ambWax, 4 * sizeof(float));
+	memcpy(amesh.mat.diffuse, diffWax, 4 * sizeof(float));
+	memcpy(amesh.mat.specular, specWax, 4 * sizeof(float));
+	memcpy(amesh.mat.emissive, emissive, 4 * sizeof(float));
+	amesh.mat.shininess = 15.0f;
+	amesh.mat.texCount = texcount;
+	renderer.myMeshes.push_back(amesh);
+
+	// create geometry and VAO for the candle wick (10)
+	float ambWick[] = { 0.05f, 0.04f, 0.03f, 1.0f };
+	float diffWick[] = { 0.15f, 0.10f, 0.08f, 1.0f };
+	float specWick[] = { 0.10f, 0.10f, 0.10f, 1.0f };
+	amesh = createCylinder(3.0f, 0.3f, 12);
+	memcpy(amesh.mat.ambient, ambWick, 4 * sizeof(float));
+	memcpy(amesh.mat.diffuse, diffWick, 4 * sizeof(float));
+	memcpy(amesh.mat.specular, specWick, 4 * sizeof(float));
+	memcpy(amesh.mat.emissive, emissive, 4 * sizeof(float));
+	amesh.mat.shininess = 10.0f;
 	amesh.mat.texCount = texcount;
 	renderer.myMeshes.push_back(amesh);
 
@@ -891,85 +1019,6 @@ void buildScene()
 	memcpy(amesh.mat.specular, spec, 4 * sizeof(float));
 	memcpy(amesh.mat.emissive, emissive, 4 * sizeof(float));
 	amesh.mat.shininess = shininess;
-	amesh.mat.texCount = texcount;
-	renderer.myMeshes.push_back(amesh);
-
-	// create geometry and VAO for the car body (9) - cubo rosa
-	float ambCar[] = { 0.25f, 0.03f, 0.15f, 1.0f };
-	float diffCar[] = { 0.95f, 0.20f, 0.60f, 1.0f };
-	float specCar[] = { 0.90f, 0.80f, 0.90f, 1.0f };
-	amesh = createCube();
-	memcpy(amesh.mat.ambient, ambCar, 4 * sizeof(float));
-	memcpy(amesh.mat.diffuse, diffCar, 4 * sizeof(float));
-	memcpy(amesh.mat.specular, specCar, 4 * sizeof(float));
-	memcpy(amesh.mat.emissive, emissive, 4 * sizeof(float));
-	amesh.mat.shininess = 100.0f;
-	amesh.mat.texCount = texcount;
-	renderer.myMeshes.push_back(amesh);
-
-	// create geometry and VAO for the metal car parts (10) - cubo metal
-	float ambBumper[] = {0.04f, 0.04f, 0.05f, 1.0f};
-	float diffBumper[] = {0.16f, 0.17f, 0.19f, 1.0f};
-	float specBumper[] = {0.85f, 0.88f, 0.95f, 1.0f};
-	amesh = createCube();
-	memcpy(amesh.mat.ambient, ambBumper, 4 * sizeof(float));
-	memcpy(amesh.mat.diffuse, diffBumper, 4 * sizeof(float));
-	memcpy(amesh.mat.specular, specBumper, 4 * sizeof(float));
-	memcpy(amesh.mat.emissive, emissive, 4 * sizeof(float));
-	amesh.mat.shininess = 180.0f;
-	amesh.mat.texCount = texcount;
-	renderer.myMeshes.push_back(amesh);
-
-	// create geometry and VAO for the window car (11) - cubo janela
-	float ambGlass[] = {0.08f, 0.12f, 0.16f, 1.0f};
-	float diffGlass[] = {0.35f, 0.65f, 0.85f, 1.0f};
-	float specGlass[] = {0.80f, 0.90f, 1.00f, 1.0f};
-	amesh = createCube();
-	memcpy(amesh.mat.ambient, ambGlass, 4 * sizeof(float));
-	memcpy(amesh.mat.diffuse, diffGlass, 4 * sizeof(float));
-	memcpy(amesh.mat.specular, specGlass, 4 * sizeof(float));
-	memcpy(amesh.mat.emissive, emissive, 4 * sizeof(float));
-	amesh.mat.shininess = 220.0f;
-	amesh.mat.texCount = texcount;
-	renderer.myMeshes.push_back(amesh);
-
-	// create geometry and VAO for the car's wheels (12) - donut roda
-	float ambWheel[] = {0.02f, 0.02f, 0.02f, 1.0f};
-	float diffWheel[] = {0.06f, 0.06f, 0.07f, 1.0f};
-	float specWheel[] = {0.20f, 0.20f, 0.22f, 1.0f};
-	amesh = createTorus(0.38f, 0.90f, 20, 20);
-	memcpy(amesh.mat.ambient, ambWheel, 4 * sizeof(float));
-	memcpy(amesh.mat.diffuse, diffWheel, 4 * sizeof(float));
-	memcpy(amesh.mat.specular, specWheel, 4 * sizeof(float));
-	memcpy(amesh.mat.emissive, emissive, 4 * sizeof(float));
-	amesh.mat.shininess = 40.0f;
-	amesh.mat.texCount = texcount;
-	renderer.myMeshes.push_back(amesh);
-
-	// create geometry and VAO for the car's headlights (13) - farois carro
-	float ambHeadlight[] = {0.35f, 0.35f, 0.30f, 1.0f};
-	float diffHeadlight[] = {1.00f, 0.95f, 0.80f, 1.0f};
-	float specHeadlight[] = {1.00f, 1.00f, 1.00f, 1.0f};
-	float emissiveHeadlight[] = {0.25f, 0.23f, 0.18f, 1.0f};
-	amesh = createSphere(1.0f, 20);
-	memcpy(amesh.mat.ambient, ambHeadlight, 4 * sizeof(float));
-	memcpy(amesh.mat.diffuse, diffHeadlight, 4 * sizeof(float));
-	memcpy(amesh.mat.specular, specHeadlight, 4 * sizeof(float));
-	memcpy(amesh.mat.emissive, emissiveHeadlight, 4 * sizeof(float));
-	amesh.mat.shininess = 200.0f;
-	amesh.mat.texCount = texcount;
-	renderer.myMeshes.push_back(amesh);
-
-	// create geometry and VAO for the car's plate (14) - matricula
-	float ambPlate[] = {0.30f, 0.30f, 0.30f, 1.0f};
-	float diffPlate[] = {0.90f, 0.90f, 0.90f, 1.0f};
-	float specPlate[] = {0.25f, 0.25f, 0.25f, 1.0f};
-	amesh = createCube();
-	memcpy(amesh.mat.ambient, ambPlate, 4 * sizeof(float));
-	memcpy(amesh.mat.diffuse, diffPlate, 4 * sizeof(float));
-	memcpy(amesh.mat.specular, specPlate, 4 * sizeof(float));
-	memcpy(amesh.mat.emissive, emissive, 4 * sizeof(float));
-	amesh.mat.shininess = 40.0f;
 	amesh.mat.texCount = texcount;
 	renderer.myMeshes.push_back(amesh);
 
