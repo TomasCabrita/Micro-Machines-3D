@@ -71,6 +71,12 @@ float aspectRatio = 640.0f / 480.0f;
 // Mouse Tracking Variables
 int startX, startY, tracking = 0;
 
+// Movimento carro
+bool keyFrente = false;
+bool keyTras = false;
+bool keyDir = false;
+bool keyEsq = false;
+
 // Frame counting and FPS computation
 #define FPS 60
 long myTime,timebase = 0,frame = 0;
@@ -139,8 +145,8 @@ struct Car {
 
 	// Movimento
 	float speed = 0.0f;
-	float acceleration = 0.0f;
-	float maxSpeed = 10.0f;
+	float acceleration = 20.0f;
+	float maxSpeed = 80.0f;
 };
 
 Car carBarbie;
@@ -492,6 +498,151 @@ void updateOranges()
 	}
 }
 
+void updateCarMoviment(float deltaTime) {
+	const float deceleration = 20.0f;
+	const float brakePower = 70.0f;
+	const float turnSpeed = 160.0f;
+
+	// aceleração e travagem
+	// W e S ao mesmo tempo: travar
+	if (keyFrente && keyTras) {
+		if (carBarbie.speed > 0.0f) {
+			carBarbie.speed -= brakePower * deltaTime;
+
+			if (carBarbie.speed < 0.0f) {
+				carBarbie.speed = 0.0f;
+			}
+				
+		}
+
+		else if (carBarbie.speed < 0.0f) {
+			carBarbie.speed += brakePower * deltaTime;
+
+			if (carBarbie.speed > 0.0f) {
+				carBarbie.speed = 0.0f;
+			}
+		}
+
+	}
+
+	else if (keyFrente) { // W
+		// se está a andar para trás: é travão
+		if (carBarbie.speed < 0.0f) {
+			carBarbie.speed += brakePower * deltaTime;
+			if (carBarbie.speed > 0.0f) {
+				carBarbie.speed = 0.0f;
+			}	
+		}
+
+		// se está parado ou a andar para a frente: acelera
+		else {
+			carBarbie.speed += carBarbie.acceleration * deltaTime;
+		}
+
+	}
+
+	else if (keyTras) { // S
+
+		// se está a andar para a frente: é travão
+		if (carBarbie.speed > 0.0f) {
+			carBarbie.speed -= brakePower * deltaTime;
+
+			if (carBarbie.speed < 0.0f) {
+				carBarbie.speed = 0.0f;
+			}
+				
+		}
+
+		// se está parado ou a andar para trás: acelera
+		else {
+			carBarbie.speed -= carBarbie.acceleration * deltaTime;
+		}
+
+	}
+
+	// Nenhuma tecla
+	else {
+		if (carBarbie.speed > 0.0f) {
+			carBarbie.speed -= deceleration * deltaTime;
+
+			if (carBarbie.speed < 0.0f) {
+				carBarbie.speed = 0.0f;
+			}
+				
+		}
+
+		else if (carBarbie.speed < 0.0f) {
+			carBarbie.speed += deceleration * deltaTime;
+
+			if (carBarbie.speed > 0.0f) {
+				carBarbie.speed = 0.0f;
+			}
+				
+		}
+
+	}
+
+	// velocidade máxima
+	if (carBarbie.speed > carBarbie.maxSpeed) {
+		carBarbie.speed = carBarbie.maxSpeed;
+	}
+		
+	if (carBarbie.speed < -carBarbie.maxSpeed) {
+		carBarbie.speed = -carBarbie.maxSpeed;
+	}
+	
+
+	// virar o carro
+	float turnDirection = 0.0f;
+
+	// A: esquerda
+	if (keyEsq && !keyDir) {
+		turnDirection = 1.0f;
+	}
+		
+	// D: direita
+	else if (keyDir && !keyEsq) {
+		turnDirection = -1.0f;
+	}
+		
+	// só vira se o carro estiver a andar
+	if (fabs(carBarbie.speed) > 0.01f) {
+		float speedFactor = fabs(carBarbie.speed) / carBarbie.maxSpeed;
+		if (speedFactor > 1.0f) {
+			speedFactor = 1.0f;
+		}
+
+		// Quanto maior a velocidade mais brusca fica a direção
+		float turnFactor = 2.0f * speedFactor * speedFactor;
+			
+		// Marcha atrás inverte a dir e esq
+		float movementDirection = (carBarbie.speed >= 0.0f) ? 1.0f : -1.0f;
+
+		// Quanto mais rápido anda, mais depressa consegue mudar de direção
+		carBarbie.angle += turnDirection * turnSpeed * speedFactor * deltaTime * movementDirection;
+	}
+
+	// virar máximo
+	if (carBarbie.angle >= 360.0f){
+		carBarbie.angle -= 360.0f;
+	}
+		
+	if (carBarbie.angle < 0.0f){
+		carBarbie.angle += 360.0f;
+	}
+
+	// direção
+	float angleRad = carBarbie.angle * 3.14159265f / 180.0f;
+	float dirX = sin(angleRad);
+	float dirZ = cos(angleRad);
+
+	//mover
+	carBarbie.x += dirX * carBarbie.speed * deltaTime;
+	carBarbie.z += dirZ * carBarbie.speed * deltaTime;
+		
+}
+
+
 /// ::::::::::::::::::::::::::::::::::::::::::::::::CALLBACK FUNCIONS:::::::::::::::::::::::::::::::::::::::::::::::::://///
 
 void timer(int value)
@@ -617,6 +768,17 @@ void setupCamera(float tableWidth, float tableDepth, float tablePosY) {
 void renderSim(void) {
 
 	FrameCount++;
+
+	// Delta time
+	static int previousTime = glutGet(GLUT_ELAPSED_TIME);
+	int currentTime = glutGet(GLUT_ELAPSED_TIME);
+	float deltaTime = (currentTime - previousTime) / 1000.0f;
+	previousTime = currentTime;
+	// Evitar saltos se a janela ficar parada, arrastada, debugger, etc.
+	if (deltaTime > 0.05f) {
+		deltaTime = 0.05f;
+	}
+	updateCarMoviment(deltaTime);
 
 	updateOranges();
 
@@ -862,6 +1024,47 @@ void processKeys(unsigned char key, int xx, int yy)
 		case 'k':
 		case 'K':
 			glDisable(GL_MULTISAMPLE); break;
+
+			// iniciar o movimento ou aceleração
+		case 'w':
+			keyFrente = true;
+			break;
+
+		case 'a':
+			keyEsq = true;
+			break;
+
+		case 's':
+			keyTras = true;
+			break;
+
+		case 'd':
+			keyDir = true;
+			break;
+
+	}
+}
+
+void processKeyUp(unsigned char key, int xx, int yy)
+{
+	switch (key) {
+
+	// parar o movimento ou aceleração
+	case 'w':
+		keyFrente = false;
+		break;
+
+	case 'a':
+		keyEsq = false;
+		break;
+
+	case 's':
+		keyTras = false;
+		break;
+
+	case 'd':
+		keyDir = false;
+		break;
 	}
 }
 
@@ -1306,11 +1509,13 @@ int main(int argc, char **argv) {
 	glutReshapeFunc(changeSize);
 
 	glutTimerFunc(0, timer, 0);
-	glutIdleFunc(renderSim);  // Use it for maximum performance
-	//glutTimerFunc(0, refresh, 0);    //use it to to get 60 FPS whatever
+	//glutIdleFunc(renderSim);  // Use it for maximum performance
+	glutTimerFunc(0, refresh, 0);    //use it to to get 60 FPS whatever
 
 //	Mouse and Keyboard Callbacks
 	glutKeyboardFunc(processKeys);
+	glutKeyboardUpFunc(processKeyUp);
+	glutIgnoreKeyRepeat(1); // ignora o repeat key do windows
 	glutMouseFunc(processMouseButtons);
 	glutMotionFunc(processMouseMotion);
 	glutMouseWheelFunc ( mouseWheel ) ;
