@@ -117,6 +117,9 @@ const int CAR_LIGHT_MESH = 7; // headlights
 const int CAR_PLATE_MESH = 8; // plate
 const int CANDLE_BASE_MESH = 9; // candle base
 const int CANDLE_WICK_MESH = 10; // candle wick
+const int BUTTER_YELLOW_MESH = 11; // butter
+const int BUTTER_BEIGE_MESH = 12; // beige part of the butter package
+const int BUTTER_BLUE_MESH = 13; // blue part of the butter package
 
 struct Car {
 	// Posição no mundo
@@ -139,6 +142,29 @@ struct Car {
 };
 
 Car carBarbie;
+
+struct Butter {
+	float x;
+	float z;
+};
+
+Butter butters[] = {
+	//{ 70.0f, -5.0f },
+	{ 70.0f, 25.0f },    // estrada 1
+	{ 50.0f, 50.0f },    // estrada 2
+	{ 10.0f, 30.0f },    // estrada 3
+	{-20.0f, 50.0f },    // estrada 4
+	{-45.0f, 70.0f },    // estrada 5
+	{-70.0f, 30.0f },    // estrada 6
+	{-70.0f, -35.0f },   // estrada 6
+	{-40.0f, -70.0f },   // estrada 7
+	{ 0.0f, -35.0f },    // estrada 8
+	{ 20.0f, 0.0f },     // estrada 9
+	{ 40.0f, -30.0f },   // estrada 10
+	{ 60.0f, -60.0f }    // estrada 11
+};
+
+const int NUM_BUTTERS = 12;
 
 /// ::::::::::::::::::::::::::::::::::::::::::::::::AUXILIARY FUNCIONS:::::::::::::::::::::::::::::::::::::::::::::::::://///
 
@@ -323,6 +349,52 @@ void drawCar(const Car& car)
 		1.0f, 1.0f, 1.0f,
 		0.0f, 0.0f, 90.0f,
 		0);
+
+	mu.popMatrix(gmu::MODEL);
+}
+
+void drawButter(const Butter& butter)
+{
+	mu.pushMatrix(gmu::MODEL);
+
+	mu.translate(gmu::MODEL, butter.x, 0.0f, butter.z);
+
+	float height = 1.2f;
+	float depth = 2.0f;
+
+	// Yellow
+	drawObject(
+		BUTTER_YELLOW_MESH,
+		-2.1f, 0.5f, 0.0f,
+		0.8f, height, depth,
+		0.0f, 0
+	);
+
+	// Small beige stripe
+	drawObject(
+		BUTTER_BEIGE_MESH,
+		-1.45f, 0.5f, 0.0f,
+		0.5f, height, depth,
+		0.0f, 0
+	);
+
+	// Blue stripe
+	drawObject(
+		BUTTER_BLUE_MESH,
+		-0.75f, 0.5f, 0.0f,
+		0.9f, height, depth,
+		0.0f, 0
+	);
+
+	// Large beige part
+	drawObject(
+		BUTTER_BEIGE_MESH,
+		0.95f, 0.5f, 0.0f,
+		2.5f, height, depth,
+		0.0f, 0
+	);
+
+
 
 	mu.popMatrix(gmu::MODEL);
 }
@@ -605,6 +677,12 @@ void renderSim(void) {
 	drawCenteredObject(CANDLE_WICK_MESH, 20.5f,  candleWickPosY, -19.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0); // 5.2: Candle wick
 	drawCenteredObject(CANDLE_BASE_MESH, 55.5f,  candleBasePosY, -41.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0); // 6.1: Candle base
 	drawCenteredObject(CANDLE_WICK_MESH, 55.5f,  candleWickPosY, -41.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0); // 6.2: Candle wick
+
+
+	// Draw butters
+	for (int i = 0; i < NUM_BUTTERS; i++) {
+		drawButter(butters[i]);
+	}
 
 	drawCar(carBarbie);
 	glutSwapBuffers();
@@ -959,6 +1037,46 @@ void buildScene()
 	memcpy(amesh.mat.specular, specWick, 4 * sizeof(float));
 	memcpy(amesh.mat.emissive, emissive, 4 * sizeof(float));
 	amesh.mat.shininess = 10.0f;
+	amesh.mat.texCount = texcount;
+	renderer.myMeshes.push_back(amesh);
+
+	// Butter (11)
+	float ambButterYellow[] = { 0.35f, 0.30f, 0.02f, 1.0f };
+	float diffButterYellow[] = { 1.00f, 0.85f, 0.05f, 1.0f };
+	float specButterYellow[] = { 0.20f, 0.20f, 0.10f, 1.0f };
+	amesh = createCube();
+	memcpy(amesh.mat.ambient, ambButterYellow, 4 * sizeof(float));
+	memcpy(amesh.mat.diffuse, diffButterYellow, 4 * sizeof(float));
+	memcpy(amesh.mat.specular, specButterYellow, 4 * sizeof(float));
+	memcpy(amesh.mat.emissive, emissive, 4 * sizeof(float));
+	amesh.mat.shininess = 30.0f;
+	amesh.mat.texCount = texcount;
+	renderer.myMeshes.push_back(amesh);
+
+	// Butter - beige part of the package (12)
+	float ambButterBeige[] = { 0.30f, 0.27f, 0.16f, 1.0f };
+	float diffButterBeige[] = { 0.90f, 0.82f, 0.55f, 1.0f };
+	float specButterBeige[] = { 0.20f, 0.20f, 0.15f, 1.0f };
+	amesh = createCube();
+	memcpy(amesh.mat.ambient, ambButterBeige, 4 * sizeof(float));
+	memcpy(amesh.mat.diffuse, diffButterBeige, 4 * sizeof(float));
+	memcpy(amesh.mat.specular, specButterBeige, 4 * sizeof(float));
+	memcpy(amesh.mat.emissive, emissive, 4 * sizeof(float));
+	amesh.mat.shininess = 30.0f;
+	amesh.mat.texCount = texcount;
+	renderer.myMeshes.push_back(amesh);
+
+
+	// Butter - blue part of the package (13)
+	float ambButterBlue[] = { 0.05f, 0.07f, 0.30f, 1.0f };
+	float diffButterBlue[] = { 0.10f, 0.18f, 0.85f, 1.0f };
+	float specButterBlue[] = { 0.20f, 0.20f, 0.30f, 1.0f };
+	amesh = createCube();
+	memcpy(amesh.mat.ambient, ambButterBlue, 4 * sizeof(float));
+	memcpy(amesh.mat.diffuse, diffButterBlue, 4 * sizeof(float));
+	memcpy(amesh.mat.specular, specButterBlue, 4 * sizeof(float));
+	memcpy(amesh.mat.emissive, emissive, 4 * sizeof(float));
+	amesh.mat.shininess = 30.0f;
 	amesh.mat.texCount = texcount;
 	renderer.myMeshes.push_back(amesh);
 
