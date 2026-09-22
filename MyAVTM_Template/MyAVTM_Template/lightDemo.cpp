@@ -120,6 +120,8 @@ const int CANDLE_WICK_MESH = 10; // candle wick
 const int BUTTER_YELLOW_MESH = 11; // butter
 const int BUTTER_BEIGE_MESH = 12; // beige part of the butter package
 const int BUTTER_BLUE_MESH = 13; // blue part of the butter package
+const int ORANGE_MESH = 14; // orange
+const int ORANGE_BLACK_MESH = 15; // black part of the orange
 
 struct Car {
 	// Posição no mundo
@@ -165,6 +167,25 @@ Butter butters[] = {
 };
 
 const int NUM_BUTTERS = 12;
+
+struct Orange {
+	float x;
+	float z;
+	float dirX;
+	float dirZ;
+	float speed;
+	float acceleration;
+	float angle;
+};
+
+Orange oranges[] = {
+	{-60.0f, -55.0f,   1.0f,  0.0f, 0.06f,  0.0000005f,      0.0f},
+	{ 60.0f,  15.0f,  -1.0f,  0.0f, 0.04f,  0.0000005f,      0.0f},
+	{-55.0f,  60.0f,   0.0f, -1.0f, 0.08f,  0.0000005f,      0.0f},
+	{ 45.0f, -60.0f,   0.0f,  1.0f, 0.05f,  0.0000005f,      0.0f}
+};
+
+const int NUM_ORANGES = 4;
 
 /// ::::::::::::::::::::::::::::::::::::::::::::::::AUXILIARY FUNCIONS:::::::::::::::::::::::::::::::::::::::::::::::::://///
 
@@ -399,6 +420,77 @@ void drawButter(const Butter& butter)
 	mu.popMatrix(gmu::MODEL);
 }
 
+void drawOrange(const Orange& orange)
+{
+	mu.pushMatrix(gmu::MODEL);
+
+	mu.translate(gmu::MODEL, orange.x, 1.0f, orange.z);
+
+	// Movimento em X -> rotação em Z
+	if (orange.dirX != 0.0f)
+		mu.rotate(gmu::MODEL, -orange.angle * orange.dirX,
+			0.0f, 0.0f, 1.0f);
+
+	// Movimento em Z -> rotação em X
+	if (orange.dirZ != 0.0f)
+		mu.rotate(gmu::MODEL, orange.angle * orange.dirZ,
+			1.0f, 0.0f, 0.0f);
+
+	// Laranja
+	drawCenteredObject(
+		ORANGE_MESH,
+		0.0f, 0.0f, 0.0f,
+		1.5f, 1.5f, 1.5f,
+		0.0f, 0.0f, 0.0f,
+		0
+	);
+
+	// Bola preta
+	drawCenteredObject(
+		ORANGE_BLACK_MESH,
+		0.0f, 1.45f, 0.0f,
+		0.18f, 0.18f, 0.18f,
+		0.0f, 0.0f, 0.0f,
+		0
+	);
+
+	mu.popMatrix(gmu::MODEL);
+}
+
+void updateOranges()
+{
+	for (int i = 0; i < NUM_ORANGES; i++)
+	{
+		// Aumentar a velocidade
+		oranges[i].speed += oranges[i].acceleration;
+
+		// Movimento em linha reta
+		oranges[i].x += oranges[i].dirX * oranges[i].speed;
+		oranges[i].z += oranges[i].dirZ * oranges[i].speed;
+
+		// Rotação sobre si própria
+		oranges[i].angle += oranges[i].speed * 10.0f;
+
+		if (oranges[i].angle >= 360.0f)
+			oranges[i].angle -= 360.0f;
+
+		// Sai pela direita -> volta pela esquerda
+		if (oranges[i].x > 87.0f)
+			oranges[i].x = -87.0f;
+
+		// Sai pela esquerda -> volta pela direita
+		if (oranges[i].x < -87.0f)
+			oranges[i].x = 87.0f;
+
+		// Sai por cima -> volta por baixo
+		if (oranges[i].z > 87.0f)
+			oranges[i].z = -87.0f;
+
+		// Sai por baixo -> volta por cima
+		if (oranges[i].z < -87.0f)
+			oranges[i].z = 87.0f;
+	}
+}
 
 /// ::::::::::::::::::::::::::::::::::::::::::::::::CALLBACK FUNCIONS:::::::::::::::::::::::::::::::::::::::::::::::::://///
 
@@ -525,6 +617,9 @@ void setupCamera(float tableWidth, float tableDepth, float tablePosY) {
 void renderSim(void) {
 
 	FrameCount++;
+
+	updateOranges();
+
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	renderer.activateRenderMeshesShaderProg(); // use the required GLSL program to draw the meshes with illumination
@@ -682,6 +777,11 @@ void renderSim(void) {
 	// Draw butters
 	for (int i = 0; i < NUM_BUTTERS; i++) {
 		drawButter(butters[i]);
+	}
+
+	// Draw oranges
+	for (int i = 0; i < NUM_ORANGES; i++) {
+		drawOrange(oranges[i]);
 	}
 
 	drawCar(carBarbie);
@@ -1077,6 +1177,31 @@ void buildScene()
 	memcpy(amesh.mat.specular, specButterBlue, 4 * sizeof(float));
 	memcpy(amesh.mat.emissive, emissive, 4 * sizeof(float));
 	amesh.mat.shininess = 30.0f;
+	amesh.mat.texCount = texcount;
+	renderer.myMeshes.push_back(amesh);
+
+	// Orange (14)
+	float ambOrange[] = { 0.30f, 0.10f, 0.00f, 1.0f };
+	float diffOrange[] = { 1.00f, 0.35f, 0.02f, 1.0f };
+	float specOrange[] = { 0.30f, 0.30f, 0.20f, 1.0f };
+	amesh = createSphere(1.0f, 20);
+	memcpy(amesh.mat.ambient, ambOrange, 4 * sizeof(float));
+	memcpy(amesh.mat.diffuse, diffOrange, 4 * sizeof(float));
+	memcpy(amesh.mat.specular, specOrange, 4 * sizeof(float));
+	memcpy(amesh.mat.emissive, emissive, 4 * sizeof(float));
+	amesh.mat.shininess = 30.0f;
+	amesh.mat.texCount = texcount;
+	renderer.myMeshes.push_back(amesh);
+
+	// black part of the orange (15)
+	float ambBlack[] = { 0.01f, 0.01f, 0.01f, 1.0f };
+	float diffBlack[] = { 0.02f, 0.02f, 0.02f, 1.0f };
+	float specBlack[] = { 0.10f, 0.10f, 0.10f, 1.0f };
+	amesh = createSphere(1.0f, 20);
+	memcpy(amesh.mat.ambient, ambBlack, 4 * sizeof(float));
+	memcpy(amesh.mat.diffuse, diffBlack, 4 * sizeof(float));
+	memcpy(amesh.mat.specular, specBlack, 4 * sizeof(float));
+	amesh.mat.shininess = 20.0f;
 	amesh.mat.texCount = texcount;
 	renderer.myMeshes.push_back(amesh);
 
