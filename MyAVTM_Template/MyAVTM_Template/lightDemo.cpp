@@ -73,11 +73,26 @@ float aspectRatio = 640.0f / 480.0f;
 // Mouse Tracking Variables
 int startX, startY, tracking = 0;
 
+// Posição inicial - carro
+const float CAR_START_X = 70.0f;
+const float CAR_START_Z = -15.0f;
+const float CAR_START_ANGLE = 0.0f;
+
 // Movimento carro
 bool keyFrente = false;
 bool keyTras = false;
 bool keyDir = false;
 bool keyEsq = false;
+
+// estados cair
+bool carFalling = false;
+float fallTimer = 0.0f;
+float fallVelocityY = 0.0f;
+float fallDirX = 0.0f;
+float fallDirZ = 0.0f;
+float fallHorizontalSpeed = 0.0f;
+const float FALL_GRAVITY = 35.0f;
+const float FALL_RESPAWN_TIME = 2.2f;
 
 // Frame counting and FPS computation
 #define FPS 60
@@ -133,12 +148,16 @@ const int ORANGE_BLACK_MESH = 15; // black part of the orange
 
 struct Car {
 	// Posição no mundo
-	float x = 70.0f;
+	float x = CAR_START_X;
 	float y = 0.0f;
-	float z = -15.0f;
+	float z = CAR_START_Z;
 
 	// Orientação
-	float angle = 0.0f;
+	float angle = CAR_START_ANGLE;
+
+	// Cair
+	float fallPitch = 0.0f;
+	float fallRoll = 0.0f;
 
 	// Dimensões gerais
 	float width = 4.5f;
@@ -261,6 +280,9 @@ void drawCar(const Car& car)
 	mu.pushMatrix(gmu::MODEL);
 	mu.translate(gmu::MODEL, car.x, car.y, car.z);
 	mu.rotate(gmu::MODEL, car.angle, 0.0f, 1.0f, 0.0f);
+	// cair
+	mu.rotate(gmu::MODEL, car.fallPitch, 1.0f, 0.0f, 0.0f);
+	mu.rotate(gmu::MODEL, car.fallRoll, 0.0f, 0.0f, 1.0f);
 
 
 	// 1 - para choques (trás)
@@ -591,7 +613,95 @@ void updateOranges()
 	}
 }
 
-void updateCarMoviment(float deltaTime) {
+
+void startCarFall() {
+	if (carFalling) {
+		return;
+	}
+
+	carFalling = true;
+	fallTimer = 0.0f;
+	fallVelocityY = 0.0f;
+
+	carBarbie.fallPitch = 0.0f;
+	carBarbie.fallRoll = 0.0f;
+
+	// Guardar direção que o carro tinha quando saiu da mesa
+	float angleRad = carBarbie.angle * 3.14159265f / 180.0f;
+	fallDirX = sin(angleRad);
+	fallDirZ = cos(angleRad);
+
+	// Mantém a velocidade que tinha ao sair
+	fallHorizontalSpeed = carBarbie.speed;
+
+	// Já não dá para andar com o carro
+	keyFrente = false;
+	keyTras = false;
+	keyDir = false;
+	keyEsq = false;
+
+}
+
+
+void respawnCar() {
+	// re inicializar tudo
+	carBarbie.x = CAR_START_X;
+	carBarbie.z = CAR_START_Z;
+	carBarbie.angle = CAR_START_ANGLE;
+
+	carBarbie.speed = 0.0f;
+	carBarbie.fallPitch = 0.0f;
+	carBarbie.fallRoll = 0.0f;
+
+	fallVelocityY = 0.0f;
+	fallHorizontalSpeed = 0.0f;
+	fallTimer = 0.0f;
+	carFalling = false;
+
+	keyFrente = false;
+	keyTras = false;
+	keyDir = false;
+	keyEsq = false;
+
+}
+
+
+void updateCarFall(float deltaTime) {
+	fallTimer += deltaTime;
+
+	// Gravidade
+	fallVelocityY -= FALL_GRAVITY * deltaTime;
+	carBarbie.y += fallVelocityY * deltaTime;
+
+	// cair na direção em que saiu da mesa
+	carBarbie.x += fallDirX * fallHorizontalSpeed * deltaTime;
+	carBarbie.z += fallDirZ * fallHorizontalSpeed * deltaTime;
+
+	// vai perdendo velocidade horizontal
+	fallHorizontalSpeed *= (1.0f - 0.8f * deltaTime);
+
+	// Kirby fall (roadr todo)
+	float speedFactor = std::min(fabs(fallHorizontalSpeed) / carBarbie.maxSpeed, 1.0f);
+	carBarbie.fallPitch += (220.0f + 180.0f * speedFactor) * deltaTime;
+	carBarbie.fallRoll += (100.0f + 120.0f * speedFactor) * deltaTime;
+
+	if (carBarbie.fallPitch >= 360.0f) {
+		carBarbie.fallPitch -= 360.0f;
+	}
+
+	if (carBarbie.fallRoll >= 360.0f) {
+		carBarbie.fallRoll -= 360.0f;
+	}
+
+	// Passado um bocado, volta à partida
+	if (fallTimer >= FALL_RESPAWN_TIME) {
+		respawnCar();
+	}
+
+}
+
+
+void updateCarMoviment(float tableWidth, float tableDepth, float deltaTime) {
 	const float deceleration = 20.0f;
 	const float brakePower = 70.0f;
 	const float turnSpeed = 160.0f;
@@ -732,6 +842,11 @@ void updateCarMoviment(float deltaTime) {
 	//mover
 	carBarbie.x += dirX * carBarbie.speed * deltaTime;
 	carBarbie.z += dirZ * carBarbie.speed * deltaTime;
+
+	// saiu da mesa (ver pelo centro do carro)
+	if (fabs(carBarbie.x) > (tableWidth * 0.5f) || fabs(carBarbie.z) > (tableDepth * 0.5f)) {
+		startCarFall();
+	}
 		
 }
 
@@ -862,6 +977,23 @@ void renderSim(void) {
 
 	FrameCount++;
 
+	// Geometry parameters to scale and translate the objects in the scene
+	float tableWidth = 175.0f, tableHeight = 1.0f, tableDepth = 175.0f;
+	float tablePosY = -1.0f;
+
+	float roadWidth = 20.0f, roadHeight = 0.1f;
+	float roadPosY = tablePosY * 0.5f;
+
+	float marginWidth = 1.0f, marginHeight = 1.0f;
+	float marginPosY = roadPosY + 0.3f;
+
+	float candleBasePosY = roadPosY + 6.0f;
+	float candleWickPosY = roadPosY + 12.0f + 1.5f;
+
+	if (!carFalling) {
+		carBarbie.y = roadPosY + roadHeight * 0.5f + 0.2f;
+	}
+
 	// Delta time
 	static int previousTime = glutGet(GLUT_ELAPSED_TIME);
 	int currentTime = glutGet(GLUT_ELAPSED_TIME);
@@ -871,7 +1003,12 @@ void renderSim(void) {
 	if (deltaTime > 0.05f) {
 		deltaTime = 0.05f;
 	}
-	updateCarMoviment(deltaTime);
+	if (carFalling) {
+		updateCarFall(deltaTime);
+	}
+	else {
+		updateCarMoviment(tableWidth, tableDepth, deltaTime);
+	}
 
 	updateOranges();
 
@@ -891,21 +1028,6 @@ void renderSim(void) {
 	//mu.loadIdentity(gmu::MODEL);
 	//// set the camera using a function similar to gluLookAt
 	//mu.lookAt(camX, camY, camZ, 0, 0, 0, 0, 1, 0);
-
-	// Geometry parameters to scale and translate the objects in the scene
-	float tableWidth = 175.0f, tableHeight = 1.0f, tableDepth = 175.0f;
-	float tablePosY = -1.0f;
-
-	float roadWidth = 20.0f, roadHeight = 0.1f;
-	float roadPosY = tablePosY * 0.5f;
-
-	float marginWidth = 1.0f, marginHeight = 1.0f;
-	float marginPosY = roadPosY + 0.3f;
-
-	float candleBasePosY = roadPosY + 6.0f;
-	float candleWickPosY = roadPosY + 12.0f + 1.5f;
-
-	carBarbie.y = roadPosY + roadHeight * 0.5f + 0.2f;
 
 	// Reset the model matrix and set up the camera based on the table dimensions
 	mu.loadIdentity(gmu::MODEL);
