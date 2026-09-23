@@ -27,6 +27,8 @@
 #include <IL/il.h>
 
 #include <algorithm>
+#include <cstdlib>
+#include <ctime>
 
 #include "renderer.h"
 #include "shader.h"
@@ -185,10 +187,10 @@ struct Orange {
 };
 
 Orange oranges[] = {
-	{-60.0f, -55.0f,   1.0f,  0.0f, 0.06f,  0.0000005f,      0.0f},
-	{ 60.0f,  15.0f,  -1.0f,  0.0f, 0.04f,  0.0000005f,      0.0f},
-	{-55.0f,  60.0f,   0.0f, -1.0f, 0.08f,  0.0000005f,      0.0f},
-	{ 45.0f, -60.0f,   0.0f,  1.0f, 0.05f,  0.0000005f,      0.0f}
+	{-60.0f, -55.0f,   1.0f,  0.0f, 0.06f,  0.000005f,      0.0f},
+	{ 60.0f,  15.0f,  -1.0f,  0.0f, 0.08f,  0.000005f,      0.0f},
+	{-55.0f,  60.0f,   0.0f, -1.0f, 0.10f,  0.000005f,      0.0f},
+	{ 45.0f, -60.0f,   0.0f,  1.0f, 0.12f,  0.000005f,      0.0f}
 };
 
 const int NUM_ORANGES = 4;
@@ -463,6 +465,106 @@ void drawOrange(const Orange& orange)
 	mu.popMatrix(gmu::MODEL);
 }
 
+bool orangePathIsFree(const Orange& orange)
+{
+	// Margem de segurança:
+	const float margin = 4.5f;
+
+	// Verificar manteigas
+	for (int i = 0; i < NUM_BUTTERS; i++)
+	{
+		// Laranja desloca-se horizontalmente (em X)
+		if (orange.dirX != 0.0f)
+		{
+			if (fabs(orange.z - butters[i].z) < margin)
+				return false;
+		}
+
+		// Laranja desloca-se verticalmente (em Z)
+		else if (orange.dirZ != 0.0f)
+		{
+			if (fabs(orange.x - butters[i].x) < margin)
+				return false;
+		}
+	}
+
+	// Posições das velas
+	float candles[6][2] = {
+		{ 51.25f,  32.25f },
+		{ -5.5f,   48.5f },
+		{-45.5f,   50.5f },
+		{-35.5f,  -50.5f },
+		{ 20.5f,  -19.0f },
+		{ 55.5f,  -41.0f }
+	};
+
+	// Verificar velas
+	for (int i = 0; i < 6; i++)
+	{
+		if (orange.dirX != 0.0f)
+		{
+			if (fabs(orange.z - candles[i][1]) < margin)
+				return false;
+		}
+
+		if (orange.dirZ != 0.0f)
+		{
+			if (fabs(orange.x - candles[i][0]) < margin)
+				return false;
+		}
+	}
+
+	return true;
+}
+
+void resetOrange(Orange& orange)
+{
+	do
+	{
+		int side = rand() % 4;
+
+		if (side == 0)
+		{
+			// Esquerda -> direita
+			orange.x = -87.0f;
+			orange.z = -80.0f + (rand() % 161);
+
+			orange.dirX = 1.0f;
+			orange.dirZ = 0.0f;
+		}
+		else if (side == 1)
+		{
+			// Direita -> esquerda
+			orange.x = 87.0f;
+			orange.z = -80.0f + (rand() % 161);
+
+			orange.dirX = -1.0f;
+			orange.dirZ = 0.0f;
+		}
+		else if (side == 2)
+		{
+			// Cima -> baixo
+			orange.x = -80.0f + (rand() % 161);
+			orange.z = 87.0f;
+
+			orange.dirX = 0.0f;
+			orange.dirZ = -1.0f;
+		}
+		else
+		{
+			// Baixo -> cima
+			orange.x = -80.0f + (rand() % 161);
+			orange.z = -87.0f;
+
+			orange.dirX = 0.0f;
+			orange.dirZ = 1.0f;
+		}
+
+	} while (!orangePathIsFree(orange));
+
+	orange.angle = 0.0f;
+}
+
 void updateOranges()
 {
 	for (int i = 0; i < NUM_ORANGES; i++)
@@ -480,21 +582,12 @@ void updateOranges()
 		if (oranges[i].angle >= 360.0f)
 			oranges[i].angle -= 360.0f;
 
-		// Sai pela direita -> volta pela esquerda
-		if (oranges[i].x > 87.0f)
-			oranges[i].x = -87.0f;
-
-		// Sai pela esquerda -> volta pela direita
-		if (oranges[i].x < -87.0f)
-			oranges[i].x = 87.0f;
-
-		// Sai por cima -> volta por baixo
-		if (oranges[i].z > 87.0f)
-			oranges[i].z = -87.0f;
-
-		// Sai por baixo -> volta por cima
-		if (oranges[i].z < -87.0f)
-			oranges[i].z = 87.0f;
+		// Se sair da mesa, reaparece num sitio aleatório
+		if (oranges[i].x > 87.0f || oranges[i].x < -87.0f ||
+			oranges[i].z > 87.0f || oranges[i].z < -87.0f)
+		{
+			resetOrange(oranges[i]);
+		}
 	}
 }
 
@@ -1491,6 +1584,8 @@ void buildScene()
 //
 
 int main(int argc, char **argv) {
+
+	srand((unsigned int)time(NULL));
 
 //  GLUT initialization
 	glutInit(&argc, argv);
