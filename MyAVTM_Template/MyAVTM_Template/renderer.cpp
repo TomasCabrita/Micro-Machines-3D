@@ -310,3 +310,16 @@ void Renderer::renderText(const TextCommand& text) {
         }
     }
 }
+
+float Renderer::textWidth(const std::string& str, float size) {
+    float w = 0.0f;
+
+    for (auto ch : str) {
+        if (ch > 32 && ch < 127)
+            w += font.packedChars[ch - 32].xadvance * size;
+        else if (ch == ' ')
+            w += 0.2f * font.size * size;
+    }
+
+    return w;
+}

@@ -154,6 +154,7 @@ struct Car {
 
 	// Orientação
 	float angle = CAR_START_ANGLE;
+	float dir[3] = { 0.0f, 0.0f, 1.0f };
 
 	// Cair
 	float fallPitch = 0.0f;
@@ -161,13 +162,17 @@ struct Car {
 
 	// Dimensões gerais
 	float width = 4.5f;
-	float height = 3.6f;
+	float height = 3.15f;
 	float depth = 7.0f;
 
 	// Movimento
 	float speed = 0.0f;
 	float acceleration = 20.0f;
 	float maxSpeed = 80.0f;
+
+	// rodas rodar
+	float wheelSpin = 0.0f;    // as rodas rodam
+	float steerVisual = 0.0f;  // as rodas viram
 };
 
 Car carBarbie;
@@ -275,133 +280,385 @@ void drawCenteredObject(
 	mu.popMatrix(gmu::MODEL);
 }
 
-void drawCar(const Car& car)
+// indices das malhas do carro
+struct CarMeshIDs {
+	int paint, trim, trimCyl, chrome, chromeCyl, rubber;
+	int interior, seat, headlight, taillight, plate, plateBlue;
+	int glass, glassTri, mirror, steering;
+};
+CarMeshIDs carMesh;
+
+// cintura = base dos vidros
+const float CAR_BELT = 1.85f;
+const float CAR_ROOF = 2.85f;
+const float CAR_WS_BASE = 1.45f, CAR_WS_TOP = 0.50f; // para-brisas: z da base e do topo
+const float CAR_RW_BASE = -1.45f, CAR_RW_TOP = -0.65f; // traseiro: z da base e do topo
+const float CAR_GLASS_X = 2.15f;
+const float CAR_WHEEL_R = 0.80f; // raio
+
+// indices materiais e malhas
+static int addCarMesh(MyMesh m, const float amb[4], const float diff[4], const float spec[4], float shininess) {
+	const float noEmissive[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+	memcpy(m.mat.ambient, amb, 4 * sizeof(float));
+	memcpy(m.mat.diffuse, diff, 4 * sizeof(float));
+	memcpy(m.mat.specular, spec, 4 * sizeof(float));
+	memcpy(m.mat.emissive, noEmissive, 4 * sizeof(float));
+	m.mat.shininess = shininess;
+	m.mat.texCount = 0;
+	renderer.myMeshes.push_back(m);
+	return (int)renderer.myMeshes.size() - 1;
+}
+
+// Cria todas as malhas do carro
+void buildCarMeshes()
 {
+	// Cilindro, esfera e toro "unitários"
+	// Pintura cor-de-rosa
+	float paintA[] = { 0.25f, 0.03f, 0.15f, 1.0f };
+	float paintD[] = { 0.95f, 0.20f, 0.60f, 1.0f };
+	float paintS[] = { 0.90f, 0.80f, 0.90f, 1.0f };
+	carMesh.paint = addCarMesh(createCube(), paintA, paintD, paintS, 100.0f);
+
+	// Plástico preto brilhante (para-choques, grelha, rodas, pilar B, jantes)
+	float trimA[] = { 0.03f, 0.03f, 0.03f, 1.0f };
+	float trimD[] = { 0.08f, 0.08f, 0.09f, 1.0f };
+	float trimS[] = { 0.50f, 0.50f, 0.55f, 1.0f };
+	carMesh.trim = addCarMesh(createCube(), trimA, trimD, trimS, 60.0f);
+	carMesh.trimCyl = addCarMesh(createCylinder(1.0f, 1.0f, 32), trimA, trimD, trimS, 60.0f);
+	carMesh.steering = addCarMesh(createTorus(0.8f, 1.0f, 32, 12), trimA, trimD, trimS, 60.0f);
+
+	// Cromado (puxadores, rodas dentro, tubo)
+	float chromeA[] = { 0.25f, 0.25f, 0.27f, 1.0f };
+	float chromeD[] = { 0.55f, 0.56f, 0.60f, 1.0f };
+	float chromeS[] = { 1.00f, 1.00f, 1.00f, 1.0f };
+	carMesh.chrome = addCarMesh(createCube(), chromeA, chromeD, chromeS, 180.0f);
+	carMesh.chromeCyl = addCarMesh(createCylinder(1.0f, 1.0f, 32), chromeA, chromeD, chromeS, 180.0f);
+
+	// Borracha: TORO flanco arredondado
+	float rubberA[] = { 0.02f, 0.02f, 0.02f, 1.0f };
+	float rubberD[] = { 0.05f, 0.05f, 0.05f, 1.0f };
+	float rubberS[] = { 0.15f, 0.15f, 0.15f, 1.0f };
+	carMesh.rubber = addCarMesh(createTorus(0.45f, 1.0f, 32, 16), rubberA, rubberD, rubberS, 10.0f);
+
+	// dentro do carro: tabliê, forros das portas e chão (rosa-velho)
+	float interiorA[] = { 0.35f, 0.24f, 0.28f, 1.0f };
+	float interiorD[] = { 0.85f, 0.60f, 0.68f, 1.0f };
+	float interiorS[] = { 0.15f, 0.15f, 0.15f, 1.0f };
+	carMesh.interior = addCarMesh(createCube(), interiorA, interiorD, interiorS, 15.0f);
+
+	// bancos (creme quase branco)
+	float seatA[] = { 0.55f, 0.52f, 0.48f, 1.0f };
+	float seatD[] = { 0.97f, 0.94f, 0.88f, 1.0f };
+	float seatS[] = { 0.20f, 0.20f, 0.20f, 1.0f };
+	carMesh.seat = addCarMesh(createCube(), seatA, seatD, seatS, 20.0f);
+
+	// Faróis (esfera achatada), luzes atrás e matrículas (com a ceninha azul)
+	float headA[] = { 0.60f, 0.60f, 0.55f, 1.0f };
+	float headD[] = { 1.00f, 0.97f, 0.85f, 1.0f };
+	float headS[] = { 1.00f, 1.00f, 1.00f, 1.0f };
+	carMesh.headlight = addCarMesh(createSphere(1.0f, 20), headA, headD, headS, 200.0f);
+
+	float tailA[] = { 0.40f, 0.00f, 0.00f, 1.0f };
+	float tailD[] = { 0.90f, 0.05f, 0.05f, 1.0f };
+	float tailS[] = { 0.80f, 0.60f, 0.60f, 1.0f };
+	carMesh.taillight = addCarMesh(createCube(), tailA, tailD, tailS, 100.0f);
+
+	float plateA[] = { 0.30f, 0.30f, 0.30f, 1.0f };
+	float plateD[] = { 0.90f, 0.90f, 0.90f, 1.0f };
+	float plateS[] = { 0.25f, 0.25f, 0.25f, 1.0f };
+	carMesh.plate = addCarMesh(createCube(), plateA, plateD, plateS, 40.0f);
+
+	float euA[] = { 0.02f, 0.05f, 0.25f, 1.0f };
+	float euD[] = { 0.05f, 0.15f, 0.75f, 1.0f };
+	float euS[] = { 0.25f, 0.25f, 0.25f, 1.0f };
+	carMesh.plateBlue = addCarMesh(createCube(), euA, euD, euS, 40.0f);
+
+	// alpha: opacidade; cor: ambeinte; especular: fraco
+	float glassA[] = { 0.30f, 0.50f, 0.75f, 0.25f };
+	float glassD[] = { 0.20f, 0.35f, 0.55f, 0.25f };
+	float glassS[] = { 0.35f, 0.35f, 0.40f, 0.25f };
+	carMesh.glass = addCarMesh(createCube(), glassA, glassD, glassS, 120.0f);
+	// cilindro de 3 lados = prisma triangular: cantos das janelas junto aos pilares A e C
+	carMesh.glassTri = addCarMesh(createCylinder(1.0f, 1.0f, 3), glassA, glassD, glassS, 120.0f);
+
+	// Espelho dos retrovisores: mais azul e um pouco menos transparente
+	// TO DO: refletir (Esperar pelo enunciado)
+	float mirrorA[] = { 0.35f, 0.55f, 0.85f, 0.55f };
+	float mirrorD[] = { 0.35f, 0.55f, 0.90f, 0.55f };
+	float mirrorS[] = { 0.80f, 0.80f, 0.90f, 0.55f };
+	carMesh.mirror = addCarMesh(createCube(), mirrorA, mirrorD, mirrorS, 200.0f);
+}
+
+// cubo centrada em (x,y,z) com tamanho (sx,sy,sz) e rotação opcional em X
+static void carBox(int mesh, float x, float y, float z, float sx, float sy, float sz, float rotX = 0.0f)
+{
+	drawObject(mesh, x, y, z, sx, sy, sz, rotX, 0);   // 0: sem textura
+}
+
+// Malha já centrada (cilindro, esfera, toro): escala e rotações em X, Y, Z
+static void carShape(int mesh, float x, float y, float z, float sx, float sy, float sz,
+	float rx = 0.0f, float ry = 0.0f, float rz = 0.0f)
+{
+	drawCenteredObject(mesh, x, y, z, sx, sy, sz, rx, ry, rz, 0);
+}
+
+// Peça inclinada: devolve o centro, o comprimento e o ângulo de rotação em X (graus)
+static void slopeParams(float yA, float zA, float yB, float zB,
+	float& yc, float& zc, float& len, float& angDeg)
+{
+	float dy = yB - yA, dz = zB - zA;
+	yc = 0.5f * (yA + yB);
+	zc = 0.5f * (zA + zB);
+	len = sqrtf(dy * dy + dz * dz);
+	angDeg = atan2f(dz, dy) * 180.0f / 3.14159265f;
+}
+
+// base do carro, estrutura e detalhes exteriores (tudo opaco)
+static void drawCarBody()
+{
+	const int P = carMesh.paint, T = carMesh.trim;
+	float yc, zc, len, ang;
+
+	carBox(carMesh.interior, 0.0f, 0.45f, 0.0f, 4.18f, 0.20f, 3.00f); // chão do carro
+	carBox(T, 0.0f, 0.90f, 2.35f, 3.00f, 1.10f, 1.70f); // bloco do chão á frente
+	carBox(T, 0.0f, 0.90f, -2.35f, 3.00f, 1.10f, 1.70f); // bloco do chão atrás
+	carBox(T, 0.0f, 0.90f, 1.45f, 4.18f, 1.10f, 0.10f); // teto da frente
+	carBox(T, 0.0f, 0.90f, -1.45f, 4.18f, 1.10f, 0.10f); // teto de trás
+
+	carBox(P, 2.17f, 1.10f, 0.0f, 0.16f, 1.50f, 3.00f); // portas esquerda
+	carBox(P, -2.17f, 1.10f, 0.0f, 0.16f, 1.50f, 3.00f); // portas direita
+	carBox(P, 0.0f, 1.65f, 2.45f, 4.50f, 0.40f, 2.10f); // capo
+	carBox(P, 0.0f, 1.65f, -2.45f, 4.50f, 0.40f, 2.10f); // bagagem
+	carBox(P, 0.0f, 1.20f, 3.35f, 4.50f, 0.50f, 0.30f); // frente vertical
+	carBox(P, 0.0f, 1.20f, -3.35f, 4.50f, 0.50f, 0.30f); // traseira vertical
+
+	carBox(P, 0.0f, CAR_ROOF + 0.05f, -0.07f, 4.40f, 0.10f, 1.30f); // tejadilho
+	slopeParams(CAR_BELT, CAR_WS_BASE, CAR_ROOF, CAR_WS_TOP, yc, zc, len, ang);
+	carBox(P, 2.14f, yc, zc, 0.14f, len, 0.14f, ang); // pilar A esquerdo
+	carBox(P, -2.14f, yc, zc, 0.14f, len, 0.14f, ang); // pilar A direito
+	slopeParams(CAR_BELT, CAR_RW_BASE, CAR_ROOF, CAR_RW_TOP, yc, zc, len, ang);
+	carBox(P, 2.14f, yc, zc, 0.14f, len, 0.14f, ang); // pilar C esquerdo
+	carBox(P, -2.14f, yc, zc, 0.14f, len, 0.14f, ang); // pilar C direito
+	carBox(T, 2.16f, 2.35f, -0.10f, 0.12f, 1.00f, 0.20f); // pilar B esquerdo
+	carBox(T, -2.16f, 2.35f, -0.10f, 0.12f, 1.00f, 0.20f); // pilar B direito
+
+	carBox(P, 0.0f, 0.675f, 3.375f, 4.40f, 0.55f, 0.35f); // parachoques
+	carBox(T, 0.0f, 0.36f, 3.36f, 4.00f, 0.16f, 0.32f); // base da frente
+	carBox(T, 0.0f, 1.15f, 3.51f, 1.90f, 0.32f, 0.04f); // rede
+	// faróis
+	carShape(carMesh.headlight, 1.70f, 1.18f, 3.50f, 0.50f, 0.20f, 0.10f);
+	carShape(carMesh.headlight, -1.70f, 1.18f, 3.50f, 0.50f, 0.20f, 0.10f);
+	carBox(carMesh.plate, 0.0f, 0.62f, 3.565f, 1.30f, 0.28f, 0.03f); // matrícula
+	carBox(carMesh.plateBlue, -0.58f, 0.62f, 3.575f, 0.14f, 0.28f, 0.03f); // azul da matrícula
+
+	carBox(P, 0.0f, 0.675f, -3.375f, 4.40f, 0.55f, 0.35f); // parachoques 
+	carBox(T, 0.0f, 0.36f, -3.36f, 4.00f, 0.16f, 0.32f);
+	carBox(carMesh.taillight, 1.70f, 1.20f, -3.51f, 0.80f, 0.26f, 0.04f); // luz de trás esquerda
+	carBox(carMesh.taillight, -1.70f, 1.20f, -3.51f, 0.80f, 0.26f, 0.04f); // luz da trás direita
+	carBox(carMesh.plate, 0.0f, 0.62f, -3.565f, 1.30f, 0.28f, 0.03f); // matrícula
+	carBox(carMesh.plateBlue, 0.58f, 0.62f, -3.575f, 0.14f, 0.28f, 0.03f); // azul da matrícula
+	carShape(carMesh.chromeCyl, -1.20f, 0.22f, -3.50f, 0.10f, 0.35f, 0.10f, 90.0f); // tubo
+
+	// de lado
+	const float yWin = 0.5f * (CAR_BELT + CAR_ROOF), hWin = CAR_ROOF - CAR_BELT;
+	for (int s = -1; s <= 1; s += 2) {
+		carBox(carMesh.chrome, s * 2.27f, 1.62f, 0.25f, 0.05f, 0.08f, 0.30f); // pega da porta da frente
+		carBox(carMesh.chrome, s * 2.27f, 1.62f, -0.85f, 0.05f, 0.08f, 0.30f); // pega da porta da trás
+		carBox(T, s * 2.255f, 1.10f, -0.10f, 0.02f, 1.50f, 0.03f); // espaço entre as portas
+		carBox(T, s * 2.30f, 1.97f, 1.25f, 0.20f, 0.06f, 0.10f); // junção do retrovisor
+		carBox(P, s * 2.45f, 2.02f, 1.22f, 0.36f, 0.26f, 0.20f); // retrovisor
+		carBox(T, s * CAR_GLASS_X, yWin, CAR_WS_TOP, 0.06f, hWin, 0.05f); // barra da janela da frente
+		carBox(T, s * CAR_GLASS_X, yWin, CAR_RW_TOP, 0.06f, hWin, 0.05f); // barra da janela de trás
+	}
+}
+
+// Interior (visível pelos vidros)
+static void drawCarInterior(const Car& car) {
+	const int I = carMesh.interior, S = carMesh.seat, T = carMesh.trim;
+
+	carBox(I, 0.0f, 1.675f, 1.15f, 4.18f, 0.45f, 0.40f); // mesa
+	carBox(I, 2.06f, 1.35f, 0.0f, 0.06f, 0.90f, 2.80f); // porta esquerda
+	carBox(I, -2.06f, 1.35f, 0.0f, 0.06f, 0.90f, 2.80f); // porta direita
+	carBox(T, 0.0f, 0.85f, 0.45f, 0.50f, 0.60f, 1.00f); // mesa vertical
+	carShape(carMesh.chromeCyl, 0.0f, 1.25f, 0.60f, 0.06f, 0.20f, 0.06f); // mudanças
+	carBox(T, 0.0f, 2.68f, 0.50f, 0.50f, 0.14f, 0.06f); // espelho interior
+	carBox(T, 0.0f, 2.80f, 0.50f, 0.05f, 0.12f, 0.05f); // junção do espelho
+
+	// Bancos da frente
+	for (int s = -1; s <= 1; s += 2) {
+		float x = s * 0.95f;
+		carBox(S, x, 0.72f, 0.25f, 1.20f, 0.34f, 0.95f); // assento
+		carBox(S, x, 1.35f, -0.30f, 1.20f, 1.05f, 0.22f, -12.0f); // encosto
+		carBox(S, x, 2.05f, -0.45f, 0.60f, 0.30f, 0.18f, -12.0f); // apoio da cabeça
+	}
+
+	// Banco de trás
+	carBox(S, 0.0f, 0.72f, -0.80f, 3.90f, 0.34f, 0.55f); // assento
+	carBox(S, 0.0f, 1.30f, -1.20f, 3.90f, 1.00f, 0.20f, -12.0f); // encosto
+
+	// Volante (rodar)
+	mu.pushMatrix(gmu::MODEL);
+	mu.translate(gmu::MODEL, 0.95f, 1.80f, 0.80f);
+	mu.rotate(gmu::MODEL, -70.0f, 1.0f, 0.0f, 0.0f);
+	mu.rotate(gmu::MODEL, car.steerVisual * 3.0f, 0.0f, 1.0f, 0.0f); // rodar o volante
+	carShape(carMesh.steering, 0.0f, 0.0f, 0.0f, 0.38f, 0.38f, 0.38f);
+	carBox(T, 0.0f, 0.0f, 0.0f, 0.68f, 0.04f, 0.07f);
+	carBox(T, 0.0f, 0.0f, -0.17f, 0.07f, 0.04f, 0.34f);
+	carShape(carMesh.trimCyl, 0.0f, -0.20f, 0.0f, 0.05f, 0.40f, 0.05f);
+	mu.popMatrix(gmu::MODEL);
+}
+
+// Uma roda: pneu + jante + cubo + 5 raios (para se ver a rodar)
+static void drawCarWheel(const Car& car, float x, float z, bool front) {
+	mu.pushMatrix(gmu::MODEL);
+	mu.translate(gmu::MODEL, x, CAR_WHEEL_R - 0.2f, z); // o pneu toca na estrada (y = -0.2)
+	if (front) {
+		mu.rotate(gmu::MODEL, car.steerVisual, 0.0f, 1.0f, 0.0f); // rodas da frente viram
+	}
+	mu.rotate(gmu::MODEL, car.wheelSpin, 1.0f, 0.0f, 0.0f); // roda em si
+
+	carShape(carMesh.rubber, 0.0f, 0.0f, 0.0f, CAR_WHEEL_R, 0.35f / 0.275f, CAR_WHEEL_R, 0.0f, 0.0f, 90.0f); // pneu = toro escalado
+	carShape(carMesh.trimCyl, 0.0f, 0.0f, 0.0f, 0.52f, 0.72f, 0.52f, 0.0f, 0.0f, 90.0f); // jante
+	carShape(carMesh.chromeCyl, 0.0f, 0.0f, 0.0f, 0.14f, 0.76f, 0.14f, 0.0f, 0.0f, 90.0f); // cubo
+
+	for (int k = 0; k < 5; k++) {
+		mu.pushMatrix(gmu::MODEL);
+		mu.rotate(gmu::MODEL, k * 72.0f, 1.0f, 0.0f, 0.0f);
+		carBox(carMesh.chrome, 0.365f, 0.30f, 0.0f, 0.02f, 0.36f, 0.08f); // raio de fora
+		carBox(carMesh.chrome, -0.365f, 0.30f, 0.0f, 0.02f, 0.36f, 0.08f); // raio de dentro
+		mu.popMatrix(gmu::MODEL);
+	}
+
+	mu.popMatrix(gmu::MODEL);
+
+}
+
+// Uma peça transparente
+struct GlassPiece {
+	int mesh;
+	bool box; 
+	float x, y, z;
+	float sx, sy, sz;
+	float rotX, rotZ;
+	float cx, cy, cz;
+	float depth;
+};
+
+// Vidros e espelhos (o alpha do material, aplicado pelo blending e não pelo shader)
+static void drawCarGlass() {
+	const int G = carMesh.glass, GT = carMesh.glassTri, M = carMesh.mirror;
+	const float h = CAR_ROOF - CAR_BELT; // altura das janelas
+	const float yMid = 0.5f * (CAR_BELT + CAR_ROOF);
+	const float aF = (CAR_WS_BASE - CAR_WS_TOP) / 1.5f;
+	const float aR = (CAR_RW_TOP - CAR_RW_BASE) / 1.5f;
+	float yc, zc, len, ang;
+
+	GlassPiece list[12];
+	int n = 0;
+
+	// Parabrisas e janela atrás
+	slopeParams(CAR_BELT, CAR_WS_BASE, CAR_ROOF, CAR_WS_TOP, yc, zc, len, ang);
+	list[n++] = { G, true, 0.0f, yc, zc, 4.20f, len, 0.04f, ang, 0.0f, 0.0f, yc, zc, 0.0f };
+	slopeParams(CAR_BELT, CAR_RW_BASE, CAR_ROOF, CAR_RW_TOP, yc, zc, len, ang);
+	list[n++] = { G, true, 0.0f, yc, zc, 4.20f, len, 0.04f, ang, 0.0f, 0.0f, yc, zc, 0.0f };
+
+	// Janelas de lado (retângulo + triângulo) e espelhos dos retrovisores
+	for (int s = -1; s <= 1; s += 2) {
+		float x = s * CAR_GLASS_X;
+		list[n++] = { G, true, x, yMid, 0.225f, 0.03f, h, 0.55f, 0.0f, 0.0f, x, yMid, 0.225f, 0.0f }; // janela da frente
+		list[n++] = { G, true, x, yMid, -0.40f, 0.03f, h, 0.50f, 0.0f, 0.0f, x, yMid, -0.40f, 0.0f }; // janela de trás
+		list[n++] = { GT, false, x, CAR_BELT, CAR_WS_TOP + 0.5f * aF, aF, 0.03f, h / 0.866f, 90.0f, 90.0f,
+			x, CAR_BELT + h / 3.0f, (2.0f * CAR_WS_TOP + CAR_WS_BASE) / 3.0f, 0.0f }; // canto da frente
+		list[n++] = { GT, false, x, CAR_BELT, CAR_RW_TOP - 0.5f * aR, aR, 0.03f, h / 0.866f, -90.0f, 90.0f,
+			x, CAR_BELT + h / 3.0f, (2.0f * CAR_RW_TOP + CAR_RW_BASE) / 3.0f, 0.0f }; // canto de trás
+		list[n++] = { M, true, s * 2.45f, 2.02f, 1.113f, 0.30f, 0.20f, 0.02f, 0.0f, 0.0f,
+			s * 2.45f, 2.02f, 1.113f, 0.0f };  // espelho retrovisor
+	}
+
+	// Distância de cada peça à câmara: -z em coordenadas de olho (VIEW * MODEL do carro)
+	mu.computeDerivedMatrix(gmu::VIEW_MODEL);
+	float* vm = mu.get(gmu::VIEW_MODEL);
+	for (int i = 0; i < n; i++)
+		list[i].depth = -(vm[2] * list[i].cx + vm[6] * list[i].cy + vm[10] * list[i].cz + vm[14]);
+
+	// De trás para a frente: a peça mais longe é desenhada primeiro
+	std::sort(list, list + n, [](const GlassPiece& a, const GlassPiece& b) { return a.depth > b.depth; });
+
+	for (int i = 0; i < n; i++) {
+		const GlassPiece& p = list[i];
+		glBlendColor(0.0f, 0.0f, 0.0f, renderer.myMeshes[p.mesh].mat.diffuse[3]); // opacidade da peça
+		if (p.box)
+			carBox(p.mesh, p.x, p.y, p.z, p.sx, p.sy, p.sz, p.rotX);
+		else
+			carShape(p.mesh, p.x, p.y, p.z, p.sx, p.sy, p.sz, p.rotX, 0.0f, p.rotZ);
+	}
+}
+
+// Texto da matrícula (TrueType)
+static void drawPlateText(float cx, float cy, float cz, bool back) {
+	if (!fontLoaded) return;
+
+	const std::string plateText = "AVTM-G5";
+	const float targetWidth = 1.00f; // largura do texto na matrícula
+	float widthPx = renderer.textWidth(plateText); // largura da fonte
+	float s = targetWidth / widthPx; // píxeis da fonte: unidades do carro
+	float capPx = 0.64f * 128.0f; // altura das maiúsculas (Arial, atlas a 128 px)
+
+	mu.pushMatrix(gmu::MODEL);
+	mu.translate(gmu::MODEL, cx, cy, cz);
+	if (back)
+		mu.rotate(gmu::MODEL, 180.0f, 0.0f, 1.0f, 0.0f);
+	mu.scale(gmu::MODEL, s, s, s);
+	mu.translate(gmu::MODEL, -0.5f * widthPx, -0.5f * capPx, 0.0f); // centrar
+	mu.computeDerivedMatrix(gmu::PROJ_VIEW_MODEL);
+
+	TextCommand t;
+	t.str = plateText;
+	t.position[0] = 0.0f;
+	t.position[1] = 0.0f;
+	t.size = 1.0f;
+	t.color[0] = 0.05f; t.color[1] = 0.05f; t.color[2] = 0.08f; t.color[3] = 1.0f;
+	t.pvm = mu.get(gmu::PROJ_VIEW_MODEL);
+	renderer.renderText(t);
+
+	mu.popMatrix(gmu::MODEL);
+
+}
+
+void drawCar(const Car& car) {
 	mu.pushMatrix(gmu::MODEL);
 	mu.translate(gmu::MODEL, car.x, car.y, car.z);
 	mu.rotate(gmu::MODEL, car.angle, 0.0f, 1.0f, 0.0f);
-	// cair
-	mu.rotate(gmu::MODEL, car.fallPitch, 1.0f, 0.0f, 0.0f);
+	mu.rotate(gmu::MODEL, car.fallPitch, 1.0f, 0.0f, 0.0f); // cair
 	mu.rotate(gmu::MODEL, car.fallRoll, 0.0f, 0.0f, 1.0f);
 
+	// Partes opacas
+	drawCarBody();
+	drawCarInterior(car);
+	drawCarWheel(car, 1.92f, 2.35f, true); // frente esquerda
+	drawCarWheel(car, -1.92f, 2.35f, true); // frente direita
+	drawCarWheel(car, 1.92f, -2.35f, false); // trás esquerda
+	drawCarWheel(car, -1.92f, -2.35f, false); // trás direita
 
-	// 1 - para choques (trás)
-	drawObject(CAR_METAL_MESH,			// material
-		0.0f, 0.90f, -1.5375f,			// posição
-		car.width -0.5f, 3.675f, 1.10f, // tamanho
-		-90.0f,							// rotação
-		0);
+	// Partes Transparentes
+	glEnable(GL_BLEND);
+	glDepthMask(GL_FALSE);
 
+	// vidros: opacidade constante por peça (glBlendColor), igual para todas as janelas
+	glBlendFunc(GL_CONSTANT_ALPHA, GL_ONE_MINUS_CONSTANT_ALPHA);
+	drawCarGlass();
 
-	// 2 - bagagem (separacao entre vidro e choques) (Trás)
-	drawObject(CAR_NORMAL_MESH,
-		0.0f, 1.071f, -1.304f,
-		car.width, 1.682f, 0.4f,
-		-36.03f, 0);
+	// texto: usa o alpha de cada letra (fundo transparente da fonte)
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	drawPlateText(0.07f, 0.62f, 3.60f, false); // matrícula da frente
+	drawPlateText(-0.07f, 0.62f, -3.60f, true); // matrícula de trás
+	renderer.activateRenderMeshesShaderProg(); // o renderText troca de shader
 
-	// 3 - Vidro (trás)
-	drawObject(CAR_GLASS_MESH,
-		0.0f, 2.1f, -0.554f,
-		car.width -0.4f, 1.6f, 1.196f,
-		-58.67f,0);
-
-	// 4 - Parte de trás (onde está o vidro) (trás)
-	drawObject(CAR_NORMAL_MESH,
-		0.0f, 1.712f, -0.554f,
-		car.width, 1.924f, 2.196f,
-		-58.67f, 0);
-
-	// 5 - teto
-	drawObject(CAR_NORMAL_MESH,
-		0.0f, 2.088f, 0.0f,
-		car.width, 2.2f, 1.70f,
-		0.0f, 0);
-
-
-	// 4.5 - Parte da frente (onde está o vidro) (frente)
-	drawObject(CAR_NORMAL_MESH,
-		0.0f, 1.712f, 0.554f,
-		car.width, 1.924f, 2.196f,
-		58.67f,0);
-
-	// 3.5 - Vidro (frente)
-	drawObject(CAR_GLASS_MESH,
-		0.0f, 2.1f, 0.554f,
-		car.width - 0.4f, 1.6f, 1.196f,
-		58.67f, 0);
-
-	// 2.5 - bagagem (separacao entre vidro e choques) (frente)
-	drawObject(CAR_NORMAL_MESH,
-		0.0f, 1.071f, 1.304f,
-		car.width, 1.682f, 0.4f,
-		36.03f, 0);
-
-	// 1.5 - para choques (frente)
-	drawObject(CAR_METAL_MESH,
-		0.0f, 0.5f, 1.5375f,
-		car.width - 0.5f, 3.675f, 0.2f, 
-		90.0f, 0);
-
-	// matricula
-	drawObject(CAR_PLATE_MESH,
-		0.0f, 1.0f, 1.5375f,
-		car.width - 3.0f, 3.675f, 0.5f, 
-		90.0f, 0);
-
-	// Farol esquerdo
-	drawCenteredObject(CAR_LIGHT_MESH,
-	-1.7f, 1.18f, 3.3f,
-	0.38f, 0.38f, 0.12f,
-	0.0f, 0.0f, 0.0f,
-	0);
-
-	// Farol direito
-	drawCenteredObject(CAR_LIGHT_MESH,
-	1.7f, 1.18f, 3.3f,
-	0.38f, 0.38f, 0.12f,
-	0.0f, 0.0f, 0.0f,
-	0);
-
-	// Base principal (baixo)
-	drawObject(CAR_NORMAL_MESH,
-		0.0f, 0.963f, 0.0f,
-		car.width, 1.375f, 6.70f,
-		0.0f,0);
-
-	// Rodas
-	float wheelX = car.width * 0.5f;  // lados do carro
-	float wheelY = 0.65f;             // altura da roda
-	float wheelZ = 2.15f;             // frente/trás
-
-	// Roda esquerda trás
-	drawCenteredObject(CAR_WHEEL_MESH,
-		-wheelX, wheelY, -wheelZ,
-		1.0f, 1.0f, 1.0f,
-		0.0f, 0.0f, 90.0f,
-		0);
-
-	// Roda direita trás
-	drawCenteredObject(CAR_WHEEL_MESH,
-		wheelX, wheelY, -wheelZ,
-		1.0f, 1.0f, 1.0f,
-		0.0f, 0.0f, 90.0f,
-		0);
-
-	// Roda esquerda frente
-	drawCenteredObject(CAR_WHEEL_MESH,
-		-wheelX, wheelY, wheelZ,
-		1.0f, 1.0f, 1.0f,
-		0.0f, 0.0f, 90.0f,
-		0);
-
-	// Roda direita frente
-	drawCenteredObject(CAR_WHEEL_MESH,
-		wheelX, wheelY, wheelZ,
-		1.0f, 1.0f, 1.0f,
-		0.0f, 0.0f, 90.0f,
-		0);
+	glDepthMask(GL_TRUE);
+	glDisable(GL_BLEND);
 
 	mu.popMatrix(gmu::MODEL);
+
 }
 
 void drawButter(const Butter& butter)
@@ -815,9 +1072,6 @@ void updateCarMoviment(float tableWidth, float tableDepth, float deltaTime) {
 			speedFactor = 1.0f;
 		}
 
-		// Quanto maior a velocidade mais brusca fica a direção
-		float turnFactor = 2.0f * speedFactor * speedFactor;
-			
 		// Marcha atrás inverte a dir e esq
 		float movementDirection = (carBarbie.speed >= 0.0f) ? 1.0f : -1.0f;
 
@@ -835,13 +1089,19 @@ void updateCarMoviment(float tableWidth, float tableDepth, float deltaTime) {
 	}
 
 	// direção
+		// direção do movimento: vetor 3D unitário (velocidade e aceleração são escalares)
 	float angleRad = carBarbie.angle * 3.14159265f / 180.0f;
-	float dirX = sin(angleRad);
-	float dirZ = cos(angleRad);
+	carBarbie.dir[0] = sinf(angleRad);
+	carBarbie.dir[1] = 0.0f;
+	carBarbie.dir[2] = cosf(angleRad);
 
 	//mover
-	carBarbie.x += dirX * carBarbie.speed * deltaTime;
-	carBarbie.z += dirZ * carBarbie.speed * deltaTime;
+	carBarbie.x += carBarbie.dir[0] * carBarbie.speed * deltaTime;
+	carBarbie.z += carBarbie.dir[2] * carBarbie.speed * deltaTime;
+	carBarbie.wheelSpin += (carBarbie.speed * deltaTime / CAR_WHEEL_R) * 180.0f / 3.14159265f;
+	carBarbie.wheelSpin = fmodf(carBarbie.wheelSpin, 360.0f);
+	float steerTarget = turnDirection * 20.0f;
+	carBarbie.steerVisual += (steerTarget - carBarbie.steerVisual) * std::min(1.0f, 10.0f * deltaTime);
 
 	// saiu da mesa (ver pelo centro do carro)
 	if (fabs(carBarbie.x) > (tableWidth * 0.5f) || fabs(carBarbie.z) > (tableDepth * 0.5f)) {
@@ -1236,24 +1496,29 @@ void processKeys(unsigned char key, int xx, int yy)
 		case 'j':
 		case 'J':
 			glEnable(GL_MULTISAMPLE); break;
+
 		case 'k':
 		case 'K':
 			glDisable(GL_MULTISAMPLE); break;
 
-			// iniciar o movimento ou aceleração
+		// iniciar o movimento ou aceleração
 		case 'w':
+		case 'W':
 			keyFrente = true;
 			break;
 
 		case 'a':
+		case 'A':
 			keyEsq = true;
 			break;
 
 		case 's':
+		case 'S':
 			keyTras = true;
 			break;
 
 		case 'd':
+		case 'D':
 			keyDir = true;
 			break;
 
@@ -1266,18 +1531,22 @@ void processKeyUp(unsigned char key, int xx, int yy)
 
 	// parar o movimento ou aceleração
 	case 'w':
+	case 'W':
 		keyFrente = false;
 		break;
 
 	case 'a':
+	case 'A':
 		keyEsq = false;
 		break;
 
 	case 's':
+	case 'S':
 		keyTras = false;
 		break;
 
 	case 'd':
+	case 'D':
 		keyDir = false;
 		break;
 	}
@@ -1683,6 +1952,8 @@ void buildScene()
 	amesh.mat.texCount = texcount;
 	renderer.myMeshes.push_back(amesh);
 
+	buildCarMeshes();
+
 
 	//The truetypeInit creates a texture object in TexObjArray for storing the fontAtlasTexture
 	
@@ -1772,6 +2043,7 @@ int main(int argc, char **argv) {
 
 	//  GLUT main loop
 	glutMainLoop();
+
 
 	return(0);
 }
