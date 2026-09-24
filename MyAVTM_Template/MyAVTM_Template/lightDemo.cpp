@@ -923,7 +923,20 @@ void respawnCar() {
 	keyTras = false;
 	keyDir = false;
 	keyEsq = false;
+}
 
+void restartGame()
+{
+	respawnCar();
+	lives = 5;
+	points = 0;
+
+	for (int i = 0; i < NUM_ORANGES; i++)
+	{
+		resetOrange(oranges[i]);
+	}
+
+	paused = false;
 }
 
 
@@ -1306,11 +1319,10 @@ void drawHUD()
 	{
 		TextCommand pauseText;
 		pauseText.str = "PAUSED";
+		pauseText.size = 1.0f;
 
 		pauseText.position[0] = WinX / 2.0f - renderer.textWidth(pauseText.str) * pauseText.size / 2.0f;
 		pauseText.position[1] = WinY - 80;
-
-		pauseText.size = 1.0f;
 
 		pauseText.color[0] = 1.0f;
 		pauseText.color[1] = 1.0f;
@@ -1320,6 +1332,22 @@ void drawHUD()
 		pauseText.pvm = mu.get(gmu::PROJ_VIEW_MODEL);
 
 		renderer.renderText(pauseText);
+
+		TextCommand restartText;
+		restartText.str = "Press R to restart";
+		restartText.size = 0.25f;
+
+		restartText.position[0] = WinX / 2.0f - renderer.textWidth(restartText.str) * restartText.size / 2.0f;
+		restartText.position[1] = WinY - 100.0f;
+
+		restartText.color[0] = 1.0f;
+		restartText.color[1] = 1.0f;
+		restartText.color[2] = 1.0f;
+		restartText.color[3] = 1.0f;
+
+		restartText.pvm = mu.get(gmu::PROJ_VIEW_MODEL);
+
+		renderer.renderText(restartText);
 	}
 
 	// Restaurar matrizes
@@ -1595,8 +1623,8 @@ void processKeys(unsigned char key, int xx, int yy)
 			printf("Headlights: %s\n", headlightMode ? "ON" : "OFF");
 			break;
 
-		case 'r':    //reset
-		case 'R':
+		case 'm':    //reset
+		case 'M':
 			alpha = 57.0f; _beta = 18.0f;  // Camera Spherical Coordinates
 			r = 45.0f;
 			camX = r * sin(alpha * 3.14f / 180.0f) * cos(_beta * 3.14f / 180.0f);
@@ -1636,6 +1664,15 @@ void processKeys(unsigned char key, int xx, int yy)
 		case 'p':
 		case 'P':
 			paused = !paused;
+			break;
+
+		case 'r':
+		case 'R':
+			if (paused)
+			{
+				restartGame();
+				printf("Game restarted\n");
+			}
 			break;
 	}
 }
