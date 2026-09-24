@@ -128,6 +128,7 @@ const int BUTTER_BEIGE_MESH = 12; // beige part of the butter package
 const int BUTTER_BLUE_MESH = 13; // blue part of the butter package
 const int ORANGE_MESH = 14; // orange
 const int ORANGE_BLACK_MESH = 15; // black part of the orange
+const int CHEERIO_MESH = 16; // cheerio
 
 struct Car {
 	// Posição no mundo
@@ -172,7 +173,7 @@ Butter butters[] = {
 	{ 60.0f, -60.0f }    // estrada 11
 };
 
-const int NUM_BUTTERS = 12;
+const int NUM_BUTTERS = sizeof(butters) / sizeof(butters[0]);
 
 struct Orange {
 	float x;
@@ -191,7 +192,43 @@ Orange oranges[] = {
 	{ 45.0f, -60.0f,   0.0f,  1.0f, 0.05f,  0.0000005f,      0.0f}
 };
 
-const int NUM_ORANGES = 4;
+const int NUM_ORANGES = sizeof(oranges) / sizeof(oranges[0]);
+
+struct Cheerios {
+	float x1;
+	float z1;
+	float x2;
+	float z2;
+};
+
+Cheerios cheerios[] = {
+	{ 60.0f, -50.0f, 60.0f,  40.0f }, // 1.1 margin
+	{ 80.0f, -70.0f, 80.0f,  60.0f }, // 1.2 margin
+	{ 20.0f,  40.0f, 60.0f,  40.0f }, // 2.1 margin
+	{  0.0f,  60.0f, 80.0f,  60.0f }, // 2.2 margin
+	{  0.0f,  40.0f,  0.0f,  60.0f }, // 2.3 margin
+	{-30.0f,  20.0f, 20.0f,  20.0f }, // 3.1 margin
+	{-10.0f,  40.0f,  0.0f,  40.0f }, // 3.2 margin
+	{ 20.0f,  20.0f, 20.0f,  40.0f }, // 3.3 margin
+	{-30.0f,  20.0f,-30.0f,  60.0f }, // 4.1 margin
+	{-10.0f,  40.0f,-10.0f,  80.0f }, // 4.2 margin
+	{-60.0f,  60.0f,-30.0f,  60.0f }, // 5.1 margin
+	{-80.0f,  80.0f,-10.0f,  80.0f }, // 5.2 margin
+	{-80.0f, -80.0f,-80.0f,  80.0f }, // 6.1 margin
+	{-60.0f, -60.0f,-60.0f,  60.0f }, // 6.2 margin
+	{-80.0f, -80.0f, 10.0f, -80.0f }, // 7.1 margin
+	{-60.0f, -60.0f,-10.0f, -60.0f }, // 7.2 margin
+	{-10.0f, -60.0f,-10.0f,  10.0f }, // 8.1 margin
+	{ 10.0f, -80.0f, 10.0f, -10.0f }, // 8.2 margin
+	{ 10.0f, -10.0f, 30.0f, -10.0f }, // 9.1 margin
+	{-10.0f,  10.0f, 50.0f,  10.0f }, // 9.2 margin
+	{ 30.0f, -70.0f, 30.0f, -10.0f }, // 10.1 margin
+	{ 50.0f, -50.0f, 50.0f,  10.0f }, // 10.2 margin
+	{ 30.0f, -70.0f, 80.0f, -70.0f }, // 11.1 margin
+	{ 50.0f, -50.0f, 60.0f, -50.0f }  // 11.2 margin
+};
+
+const int NUM_CHEERIOS = sizeof(cheerios) / sizeof(cheerios[0]);
 
 /// ::::::::::::::::::::::::::::::::::::::::::::::::AUXILIARY FUNCIONS:::::::::::::::::::::::::::::::::::::::::::::::::://///
 
@@ -221,6 +258,7 @@ void drawObject(int meshID,
 	mu.popMatrix(gmu::MODEL);
 }
 
+// Auxiliary function to draw a mesh object with the given position, scale, rotation, and mesh ID, centered at the origin
 void drawCenteredObject(
 	int meshID,
 	float posX, float posY, float posZ,
@@ -463,6 +501,21 @@ void drawOrange(const Orange& orange)
 	mu.popMatrix(gmu::MODEL);
 }
 
+void drawCheerioLine(float x1, float z1, float x2, float z2, float posY, float spacing) {
+	float dx = x2 - x1;
+	float dz = z2 - z1;
+	float dist = sqrtf(dx * dx + dz * dz); // Calculate the distance between the two points
+	int count = (int)(dist / spacing); // Calculate the number of cheerios to draw based on the distance and spacing
+
+	for (int i = 0; i <= count; ++i) {
+		float t = (count == 0) ? 0.0f : (float)i / (float)count; // Calculate the interpolation factor (how far along the line we are | t = 0 to 1)
+		float x = x1 + t * dx;
+		float z = z1 + t * dz;
+
+		drawObject(CHEERIO_MESH, x, posY, z, 1.0f, 1.0f, 1.0f);
+	}
+}
+
 void updateOranges()
 {
 	for (int i = 0; i < NUM_ORANGES; i++)
@@ -663,12 +716,7 @@ void refresh(int value)
 	glutTimerFunc(1000 / FPS, refresh, 0);
 }
 
-// ------------------------------------------------------------
-//
-// Reshape Callback Function
-//
-// Atualiza o viewpoint quando a janela muda de tamanho
-
+// Callback function for window resizing
 void changeSize(int w, int h) {
 
 	/* (Antigo - lightDemo)
@@ -759,12 +807,7 @@ void setupCamera(float tableWidth, float tableDepth, float tablePosY) {
 
 }
 
-
-// ------------------------------------------------------------
-//
-// Render stufff
-//
-
+// Render the scene
 void renderSim(void) {
 
 	FrameCount++;
@@ -774,30 +817,24 @@ void renderSim(void) {
 	int currentTime = glutGet(GLUT_ELAPSED_TIME);
 	float deltaTime = (currentTime - previousTime) / 1000.0f;
 	previousTime = currentTime;
-	// Evitar saltos se a janela ficar parada, arrastada, debugger, etc.
+	// Avoid jumps if the window is paused, dragged, debugger, etc.
 	if (deltaTime > 0.05f) {
 		deltaTime = 0.05f;
 	}
-	updateCarMoviment(deltaTime);
 
+	// Update movements of objects in the scene
+	updateCarMoviment(deltaTime);
 	updateOranges();
 
+	// Clear the color and depth buffers to prepare for rendering the new frame
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-	renderer.activateRenderMeshesShaderProg(); // use the required GLSL program to draw the meshes with illumination
-
-	//Associar os Texture Units aos Objects Texture
-	//stone.tga loaded in TU0; checker.tga loaded in TU1;  lightwood.tga loaded in TU2
-	renderer.setTexUnit(0, 0);
-	renderer.setTexUnit(1, 1);
-	renderer.setTexUnit(2, 2);
-	renderer.setTexUnit(3, 3);
-
-	//// load identity matrices
-	//mu.loadIdentity(gmu::VIEW);
-	//mu.loadIdentity(gmu::MODEL);
-	//// set the camera using a function similar to gluLookAt
-	//mu.lookAt(camX, camY, camZ, 0, 0, 0, 0, 1, 0);
+	// Activate the shader program for rendering meshes with illumination
+	renderer.activateRenderMeshesShaderProg();
+	// Set the texture units for the shader program
+	renderer.setTexUnit(0, 0); // stone.tga
+	renderer.setTexUnit(1, 1); // checker.png
+	renderer.setTexUnit(2, 2); // lightwood.tga
+	renderer.setTexUnit(3, 3); // road.jpg
 
 	// Geometry parameters to scale and translate the objects in the scene
 	float tableWidth = 175.0f, tableHeight = 1.0f, tableDepth = 175.0f;
@@ -806,8 +843,11 @@ void renderSim(void) {
 	float roadWidth = 20.0f, roadHeight = 0.1f;
 	float roadPosY = tablePosY * 0.5f;
 
-	float marginWidth = 1.0f, marginHeight = 1.0f;
-	float marginPosY = roadPosY + 0.3f;
+	float marginWidth = 1.0f, marginHeight = 0.1f;
+	float marginPosY = roadPosY + 0.1f;
+
+	float cheerioPosY = marginPosY + 1.0f;
+	float spacing = 6.0f;
 
 	float candleBasePosY = roadPosY + 6.0f;
 	float candleWickPosY = roadPosY + 12.0f + 1.5f;
@@ -915,11 +955,16 @@ void renderSim(void) {
 	drawObject(MARGIN_MESH, 55.0f,  marginPosY, -70.0f, 50.0f,       marginHeight, marginWidth); // 11.1: Front horizontal road margin
 	drawObject(MARGIN_MESH, 55.0f,  marginPosY, -50.0f, 10.0f,       marginHeight, marginWidth); // 11.2: Back horizontal road margin
 
+	// Draw the cheerios along the road margins
+	for (int i = 0; i < NUM_CHEERIOS; i++) {
+		drawCheerioLine(cheerios[i].x1, cheerios[i].z1, cheerios[i].x2, cheerios[i].z2, cheerioPosY, spacing);
+	}
+
 	// Draw the start flag and start line
 	drawObject(ROAD_MESH,   60.0f, roadPosY + 7.5f,  -5.0f, 1.0f,      15.0f, 1.0f); // 1: Left flag pole
 	drawObject(ROAD_MESH,   80.0f, roadPosY + 7.5f,  -5.0f, 1.0f,      15.0f, 1.0f); // 2: Right flag pole
 	drawObject(MARGIN_MESH, 70.0f, roadPosY + 10.0f, -5.0f, roadWidth, 3.0f,  1.0f); // 3: Flag
-	drawObject(MARGIN_MESH, 70.0f, roadPosY + 0.1f,  -5.0f, roadWidth, 0.1f,  1.0f); // 4: Start line
+	drawObject(MARGIN_MESH, 70.0f, marginPosY,       -5.0f, roadWidth, 0.1f,  1.0f); // 4: Start line
 
 	// Draw the 6 candles
 	drawCenteredObject(CANDLE_BASE_MESH, 51.25f, candleBasePosY, 32.25f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0); // 1.1: Candle base
@@ -935,18 +980,19 @@ void renderSim(void) {
 	drawCenteredObject(CANDLE_BASE_MESH, 55.5f,  candleBasePosY, -41.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0); // 6.1: Candle base
 	drawCenteredObject(CANDLE_WICK_MESH, 55.5f,  candleWickPosY, -41.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0); // 6.2: Candle wick
 
-
-	// Draw butters
+	// Draw the butters
 	for (int i = 0; i < NUM_BUTTERS; i++) {
 		drawButter(butters[i]);
 	}
 
-	// Draw oranges
+	// Draw the oranges
 	for (int i = 0; i < NUM_ORANGES; i++) {
 		drawOrange(oranges[i]);
 	}
 
+	// Draw the car
 	drawCar(carBarbie);
+
 	glutSwapBuffers();
 }
 
@@ -1343,7 +1389,7 @@ void buildScene()
 	amesh.mat.texCount = texcount;
 	renderer.myMeshes.push_back(amesh);
 
-	// Butter (11)
+	// create geometry and VAO for the butter (11)
 	float ambButterYellow[] = { 0.35f, 0.30f, 0.02f, 1.0f };
 	float diffButterYellow[] = { 1.00f, 0.85f, 0.05f, 1.0f };
 	float specButterYellow[] = { 0.20f, 0.20f, 0.10f, 1.0f };
@@ -1356,7 +1402,7 @@ void buildScene()
 	amesh.mat.texCount = texcount;
 	renderer.myMeshes.push_back(amesh);
 
-	// Butter - beige part of the package (12)
+	// create geometry and VAO for the butter - beige part of the package (12)
 	float ambButterBeige[] = { 0.30f, 0.27f, 0.16f, 1.0f };
 	float diffButterBeige[] = { 0.90f, 0.82f, 0.55f, 1.0f };
 	float specButterBeige[] = { 0.20f, 0.20f, 0.15f, 1.0f };
@@ -1369,8 +1415,7 @@ void buildScene()
 	amesh.mat.texCount = texcount;
 	renderer.myMeshes.push_back(amesh);
 
-
-	// Butter - blue part of the package (13)
+	// create geometry and VAO for the butter - blue part of the package (13)
 	float ambButterBlue[] = { 0.05f, 0.07f, 0.30f, 1.0f };
 	float diffButterBlue[] = { 0.10f, 0.18f, 0.85f, 1.0f };
 	float specButterBlue[] = { 0.20f, 0.20f, 0.30f, 1.0f };
@@ -1383,7 +1428,7 @@ void buildScene()
 	amesh.mat.texCount = texcount;
 	renderer.myMeshes.push_back(amesh);
 
-	// Orange (14)
+	// create geometry and VAO for the orange (14)
 	float ambOrange[] = { 0.30f, 0.10f, 0.00f, 1.0f };
 	float diffOrange[] = { 1.00f, 0.35f, 0.02f, 1.0f };
 	float specOrange[] = { 0.30f, 0.30f, 0.20f, 1.0f };
@@ -1396,7 +1441,7 @@ void buildScene()
 	amesh.mat.texCount = texcount;
 	renderer.myMeshes.push_back(amesh);
 
-	// black part of the orange (15)
+	// create geometry and VAO for the black part of the orange (15)
 	float ambBlack[] = { 0.01f, 0.01f, 0.01f, 1.0f };
 	float diffBlack[] = { 0.02f, 0.02f, 0.02f, 1.0f };
 	float specBlack[] = { 0.10f, 0.10f, 0.10f, 1.0f };
@@ -1405,6 +1450,19 @@ void buildScene()
 	memcpy(amesh.mat.diffuse, diffBlack, 4 * sizeof(float));
 	memcpy(amesh.mat.specular, specBlack, 4 * sizeof(float));
 	amesh.mat.shininess = 20.0f;
+	amesh.mat.texCount = texcount;
+	renderer.myMeshes.push_back(amesh);
+
+	// create geometry and VAO for the cheerio (16)
+	float ambCheerio[] = { 0.35f, 0.30f, 0.05f, 1.0f };
+	float diffCheerio[] = { 0.95f, 0.85f, 0.10f, 1.0f };
+	float specCheerio[] = { 0.50f, 0.50f, 0.20f, 1.0f };
+	amesh = createTorus(1.0f, 2.0f, 20, 20);
+	memcpy(amesh.mat.ambient, ambCheerio, 4 * sizeof(float));
+	memcpy(amesh.mat.diffuse, diffCheerio, 4 * sizeof(float));
+	memcpy(amesh.mat.specular, specCheerio, 4 * sizeof(float));
+	memcpy(amesh.mat.emissive, emissive, 4 * sizeof(float));
+	amesh.mat.shininess = shininess;
 	amesh.mat.texCount = texcount;
 	renderer.myMeshes.push_back(amesh);
 
@@ -1558,4 +1616,3 @@ int main(int argc, char **argv) {
 
 	return(0);
 }
-

@@ -76,7 +76,7 @@ void main() {
 			vec3 l = normalize(lightVector);
 			float dist = length(lightVector);
 
-			att = 1.0 / (1.0 + 0.05 * dist + 0.01 * dist * dist); // Inverse square so that light intensity decreases with distance
+			att = 1.0 / (1.0 + 0.005 * dist + 0.001 * dist * dist); // Inverse square so that light intensity decreases with distance
 			intensity = max(dot(n, l), 0.0) * att;
 			totalIntensity += intensity;
 
@@ -97,7 +97,7 @@ void main() {
 
 			float spotCos = dot(-l, sd);
 			if (spotCos > spotCosCutOff) { // Check if the fragment is within the spotlight cone
-				att = pow(spotCos, spotExp) / (1.0 + 0.05 * dist + 0.01 * dist * dist);
+				att = pow(spotCos, spotExp) / (1.0 + 0.005 * dist + 0.001 * dist * dist);
 				
 				intensity = max(dot(n, l), 0.0) * att;
 				totalIntensity += intensity;
