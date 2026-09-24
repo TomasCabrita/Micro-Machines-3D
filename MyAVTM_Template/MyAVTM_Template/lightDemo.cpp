@@ -46,6 +46,7 @@ unsigned int FrameCount = 0;
 
 int lives = 5;
 int points = 0;
+bool paused = false;
 
 //File with the font
 const string fontPathFile = "fonts/arial.ttf";
@@ -1300,6 +1301,27 @@ void drawHUD()
 
 	renderer.renderText(pointsText);
 
+	// PAUSED
+	if (paused)
+	{
+		TextCommand pauseText;
+		pauseText.str = "PAUSED";
+
+		pauseText.position[0] = WinX / 2.0f - renderer.textWidth(pauseText.str) * pauseText.size / 2.0f;
+		pauseText.position[1] = WinY - 80;
+
+		pauseText.size = 1.0f;
+
+		pauseText.color[0] = 1.0f;
+		pauseText.color[1] = 1.0f;
+		pauseText.color[2] = 1.0f;
+		pauseText.color[3] = 1.0f;
+
+		pauseText.pvm = mu.get(gmu::PROJ_VIEW_MODEL);
+
+		renderer.renderText(pauseText);
+	}
+
 	// Restaurar matrizes
 	mu.popMatrix(gmu::PROJECTION);
 	mu.popMatrix(gmu::VIEW);
@@ -1348,14 +1370,17 @@ void renderSim(void) {
 	if (deltaTime > 0.05f) {
 		deltaTime = 0.05f;
 	}
-	if (carFalling) {
-		updateCarFall(deltaTime);
-	}
-	else {
-		updateCarMoviment(tableWidth, tableDepth, deltaTime);
-	}
+	if (!paused)
+	{
+		if (carFalling) {
+			updateCarFall(deltaTime);
+		}
+		else {
+			updateCarMoviment(tableWidth, tableDepth, deltaTime);
+		}
 
-	updateOranges();
+		updateOranges();
+	}
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -1608,6 +1633,10 @@ void processKeys(unsigned char key, int xx, int yy)
 			keyDir = true;
 			break;
 
+		case 'p':
+		case 'P':
+			paused = !paused;
+			break;
 	}
 }
 
