@@ -60,6 +60,8 @@ public:
 
   void setTexUnit(int tuId, int texObjArray_pos);
 
+  float textWidth(const std::string& str, float size = 1.0f);
+
   // Vector with meshes
   std::vector<struct MyMesh> myMeshes;
 

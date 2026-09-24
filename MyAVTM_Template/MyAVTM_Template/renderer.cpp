@@ -279,7 +279,7 @@ void Renderer::renderText(const TextCommand& text) {
             // The units of the fields of the above structs are in pixels,
 
             float glyphSize[2] = { (float)(packedChar.x1 - packedChar.x0) * text.size,(float)(packedChar.y1 - packedChar.y0) * text.size };
-            float glyphBoundingBoxBottomLeft[2] = { localPosition[0] + (packedChar.xoff * text.size), (localPosition[1] - packedChar.yoff2) * text.size };
+            float glyphBoundingBoxBottomLeft[2] = { localPosition[0] + (packedChar.xoff * text.size), localPosition[1] - (packedChar.yoff2 * text.size) };
 
             // The order of vertices of a quad goes top-right, top-left, bottom-left, bottom-right
             //each vertex will have just the Position attribute containing 4 floats: (vec2 pos, vec2 tex), in total 16 floats
@@ -309,4 +309,17 @@ void Renderer::renderText(const TextCommand& text) {
             localPosition[0] += 0.2 * font.size * text.size;
         }
     }
+}
+
+float Renderer::textWidth(const std::string& str, float size) {
+    float w = 0.0f;
+
+    for (auto ch : str) {
+        if (ch > 32 && ch < 127)
+            w += font.packedChars[ch - 32].xadvance * size;
+        else if (ch == ' ')
+            w += 0.2f * font.size * size;
+    }
+
+    return w;
 }
