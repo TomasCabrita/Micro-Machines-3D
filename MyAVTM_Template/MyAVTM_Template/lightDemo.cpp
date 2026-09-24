@@ -224,14 +224,14 @@ Orange oranges[] = {
 
 const int NUM_ORANGES = sizeof(oranges) / sizeof(oranges[0]);
 
-struct Cheerios {
+struct CheeriosLine {
 	float x1;
 	float z1;
 	float x2;
 	float z2;
 };
 
-Cheerios cheerios[] = {
+CheeriosLine cheeriosLine[] = {
 	{ 60.0f, -50.0f, 60.0f,  40.0f }, // 1.1 margin
 	{ 80.0f, -70.0f, 80.0f,  60.0f }, // 1.2 margin
 	{ 20.0f,  40.0f, 60.0f,  40.0f }, // 2.1 margin
@@ -258,7 +258,19 @@ Cheerios cheerios[] = {
 	{ 50.0f, -50.0f, 60.0f, -50.0f }  // 11.2 margin
 };
 
-const int NUM_CHEERIOS = sizeof(cheerios) / sizeof(cheerios[0]);
+struct CheerioInstance {
+	float x;
+	float z;
+};
+
+vector<CheerioInstance> cheerioInstances;
+
+const int NUM_CHEERIOS_LINES = sizeof(cheeriosLine) / sizeof(cheeriosLine[0]);
+
+struct AABB {
+	float minX, maxX;
+	float minZ, maxZ;
+};
 
 /// ::::::::::::::::::::::::::::::::::::::::::::::::AUXILIARY FUNCIONS:::::::::::::::::::::::::::::::::::::::::::::::::://///
 
@@ -744,8 +756,6 @@ void drawButter(const Butter& butter)
 		0.0f, 0
 	);
 
-
-
 	mu.popMatrix(gmu::MODEL);
 }
 
@@ -786,18 +796,25 @@ void drawOrange(const Orange& orange)
 	mu.popMatrix(gmu::MODEL);
 }
 
-void drawCheerioLine(float x1, float z1, float x2, float z2, float posY, float spacing) {
-	float dx = x2 - x1;
-	float dz = z2 - z1;
-	float dist = sqrtf(dx * dx + dz * dz); // Calculate the distance between the two points
-	int count = (int)(dist / spacing); // Calculate the number of cheerios to draw based on the distance and spacing
+void initCheerios() {
+	cheerioInstances.clear();
+	float spacing = 6.0f;
 
-	for (int i = 0; i <= count; ++i) {
-		float t = (count == 0) ? 0.0f : (float)i / (float)count; // Calculate the interpolation factor (how far along the line we are | t = 0 to 1)
-		float x = x1 + t * dx;
-		float z = z1 + t * dz;
+	for (int i = 0; i < NUM_CHEERIOS_LINES; i++) {
+		float x1 = cheeriosLine[i].x1;
+		float z1 = cheeriosLine[i].z1;
+		float x2 = cheeriosLine[i].x2;
+		float z2 = cheeriosLine[i].z2;
 
-		drawObject(CHEERIO_MESH, x, posY, z, 1.0f, 1.0f, 1.0f);
+		float dx = x2 - x1;
+		float dz = z2 - z1;
+		float dist = sqrtf(dx * dx + dz * dz);  // Calculate the distance between the two points
+		int count = (int)(dist / spacing); // Calculate the number of cheerios to draw based on the distance and spacing
+
+		for (int j = 0; j <= count; ++j) {
+			float t = (count == 0) ? 0.0f : (float)j / (float)count; // Calculate the interpolation factor (how far along the line we are | t = 0 to 1)
+			cheerioInstances.push_back({ x1 + t * dx, z1 + t * dz });
+		}
 	}
 }
 
@@ -927,7 +944,6 @@ void updateOranges()
 	}
 }
 
-
 void startCarFall() {
 	if (carFalling) {
 		return;
@@ -955,7 +971,6 @@ void startCarFall() {
 	keyEsq = false;
 
 }
-
 
 void respawnCar() {
 	// re inicializar tudo
@@ -992,7 +1007,6 @@ void restartGame()
 	paused = false;
 }
 
-
 void updateCarFall(float deltaTime) {
 	fallTimer += deltaTime;
 
@@ -1026,7 +1040,6 @@ void updateCarFall(float deltaTime) {
 	}
 
 }
-
 
 void updateCarMoviment(float tableWidth, float tableDepth, float deltaTime) {
 	const float deceleration = 20.0f;
@@ -1180,6 +1193,82 @@ void updateCarMoviment(float tableWidth, float tableDepth, float deltaTime) {
 		
 }
 
+/// ::::::::::::::::::::::::::::::::::::::::::::::::COLISION FUNCIONS:::::::::::::::::::::::::::::::::::::::::::::::::://///
+
+// Get the AABB for the car, butter, orange and cheerio
+AABB getCarAABB(const Car& car) {
+	float halfW = car.width * 0.5f - 0.1f;
+	float halfD = car.depth * 0.5f - 0.1f;
+	return { car.x - halfW, car.x + halfW, car.z - halfD, car.z + halfD };
+}
+
+AABB getButterAABB(const Butter& butter) {
+	float halfW = 2.35f;
+	float halfD = 1.0f;
+	return { butter.x - halfW, butter.x + halfW, butter.z - halfD, butter.z + halfD };
+}
+
+AABB getOrangeAABB(const Orange& orange) {
+	float radius = 1.5f;
+	return { orange.x - radius, orange.x + radius, orange.z - radius, orange.z + radius };
+}
+
+AABB getCheerioAABB(const CheerioInstance& cheerio) {
+	float halfSize = 0.6f;
+	return { cheerio.x - halfSize, cheerio.x + halfSize, cheerio.z - halfSize, cheerio.z + halfSize };
+}
+
+// Axis-Aligned Bounding Box (AABB) collision detection
+bool checkAABBCollision(const AABB& a, const AABB& b) {
+	return (a.minX <= b.maxX && a.maxX >= b.minX) && // horizontal overlap, x
+		(a.minZ <= b.maxZ && a.maxZ >= b.minZ); // vertical overlap, z
+}
+
+// Check for collisions between the car and other objects
+void checkCollisions() {
+	AABB carBox = getCarAABB(carBarbie);
+
+	// 1. Verify collision with Oranges (Car loses a life and respawns)
+	for (int i = 0; i < NUM_ORANGES; i++) {
+		AABB orangeBox = getOrangeAABB(oranges[i]);
+		if (checkAABBCollision(carBox, orangeBox)) {
+			lives--;
+			respawnCar();
+			if (lives <= 0) {
+				paused = true;
+			}
+			return;
+		}
+	}
+
+	// 2. Verify collision with Butters (Car stops and pushes the butter)
+	for (int i = 0; i < NUM_BUTTERS; i++) {
+		AABB butterBox = getButterAABB(butters[i]);
+		if (checkAABBCollision(carBox, butterBox)) {
+			// Push the butter slightly in the direction of the car's movement
+			float pushDist = 0.4f;
+			butters[i].x += carBarbie.dir[0] * pushDist;
+			butters[i].z += carBarbie.dir[2] * pushDist;
+
+			// Stop the car
+			carBarbie.speed = 0.0f;
+		}
+	}
+
+	// 3. Verify collision with Cheerios (Car stops and pushes the cheerio)
+	for (auto& cheerio : cheerioInstances) {
+		AABB cheerioBox = getCheerioAABB(cheerio);
+		if (checkAABBCollision(carBox, cheerioBox)) {
+			// Push the cheerio slightly in the direction of the car's movement
+			float pushDist = 0.5f;
+			cheerio.x += carBarbie.dir[0] * pushDist;
+			cheerio.z += carBarbie.dir[2] * pushDist;
+
+			// Stop the car
+			carBarbie.speed = 0.0f;
+		}
+	}
+}
 
 /// ::::::::::::::::::::::::::::::::::::::::::::::::CALLBACK FUNCIONS:::::::::::::::::::::::::::::::::::::::::::::::::://///
 
@@ -1452,6 +1541,7 @@ void renderSim(void) {
 		}
 		else {
 			updateCarMoviment(tableWidth, tableDepth, deltaTime);
+			checkCollisions();
 		}
 
 		updateOranges();
@@ -1569,8 +1659,8 @@ void renderSim(void) {
 	drawObject(MARGIN_MESH, 55.0f,  marginPosY, -50.0f, 10.0f,       marginHeight, marginWidth); // 11.2: Back horizontal road margin
 
 	// Draw the cheerios along the road margins
-	for (int i = 0; i < NUM_CHEERIOS; i++) {
-		drawCheerioLine(cheerios[i].x1, cheerios[i].z1, cheerios[i].x2, cheerios[i].z2, cheerioPosY, spacing);
+	for (const auto& cheerio : cheerioInstances) {
+		drawObject(CHEERIO_MESH, cheerio.x, cheerioPosY, cheerio.z, 1.0f, 1.0f, 1.0f);
 	}
 
 	// Draw the start flag and start line
@@ -2245,6 +2335,7 @@ int main(int argc, char **argv) {
 	ilInit();
 
 	buildScene();
+	initCheerios();
 
 	if(!renderer.setRenderMeshesShaderProg("shaders/mesh.vert", "shaders/mesh.frag") || 
 		!renderer.setRenderTextShaderProg("shaders/ttf.vert", "shaders/ttf.frag"))
