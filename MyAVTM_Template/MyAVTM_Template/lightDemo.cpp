@@ -44,6 +44,9 @@ int WinX = 640, WinY = 480;
 
 unsigned int FrameCount = 0;
 
+int lives = 5;
+int points = 0;
+
 //File with the font
 const string fontPathFile = "fonts/arial.ttf";
 
@@ -1227,6 +1230,88 @@ void setupCamera(float tableWidth, float tableDepth, float tablePosY) {
 
 }
 
+void drawHUD()
+{
+	if (!fontLoaded)
+		return;
+
+	// Texto deve aparecer à frente de toda a cena
+	glDisable(GL_DEPTH_TEST);
+
+	// O fundo dos glyphs é transparente
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+	// Obter dimensões reais do viewport
+	int viewport[4];
+	glGetIntegerv(GL_VIEWPORT, viewport);
+
+	// Preparar matrizes para coordenadas do ecrã
+	mu.pushMatrix(gmu::MODEL);
+	mu.loadIdentity(gmu::MODEL);
+
+	mu.pushMatrix(gmu::VIEW);
+	mu.loadIdentity(gmu::VIEW);
+
+	mu.pushMatrix(gmu::PROJECTION);
+	mu.loadIdentity(gmu::PROJECTION);
+
+	mu.ortho(
+		viewport[0],
+		viewport[0] + viewport[2] - 1,
+		viewport[1],
+		viewport[1] + viewport[3] - 1,
+		-1.0f,
+		1.0f
+	);
+
+	mu.computeDerivedMatrix(gmu::PROJ_VIEW_MODEL);
+
+	// LIVES
+	TextCommand livesText;
+	livesText.str = "Lives: " + std::to_string(lives);
+	livesText.position[0] = 20.0f;
+	livesText.position[1] = WinY - 40.0f;
+	livesText.size = 0.25f;
+
+	livesText.color[0] = 1.0f;
+	livesText.color[1] = 1.0f;
+	livesText.color[2] = 1.0f;
+	livesText.color[3] = 1.0f;
+
+	livesText.pvm = mu.get(gmu::PROJ_VIEW_MODEL);
+
+	renderer.renderText(livesText);
+
+
+	// POINTS
+	TextCommand pointsText;
+	pointsText.str = "Points: " + std::to_string(points);
+	pointsText.position[0] = 20.0f;
+	pointsText.position[1] = WinY - 70.0f;
+	pointsText.size = 0.25f;
+
+	pointsText.color[0] = 1.0f;
+	pointsText.color[1] = 1.0f;
+	pointsText.color[2] = 1.0f;
+	pointsText.color[3] = 1.0f;
+
+	pointsText.pvm = mu.get(gmu::PROJ_VIEW_MODEL);
+
+	renderer.renderText(pointsText);
+
+	// Restaurar matrizes
+	mu.popMatrix(gmu::PROJECTION);
+	mu.popMatrix(gmu::VIEW);
+	mu.popMatrix(gmu::MODEL);
+
+	// Restaurar estado OpenGL
+	glDisable(GL_BLEND);
+	glEnable(GL_DEPTH_TEST);
+
+	// renderText mudou o shader ativo
+	renderer.activateRenderMeshesShaderProg();
+}
 
 // ------------------------------------------------------------
 //
@@ -1422,6 +1507,7 @@ void renderSim(void) {
 	}
 
 	drawCar(carBarbie);
+	drawHUD();
 	glutSwapBuffers();
 }
 
