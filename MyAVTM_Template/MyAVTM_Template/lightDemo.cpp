@@ -52,6 +52,8 @@ unsigned int FrameCount = 0;
 int lives = 5;
 int points = 0;
 bool paused = false;
+bool gameOver = false;
+float gameOverTimer = 0.0f;
 
 // Font file path
 const string fontPathFile = "fonts/arial.ttf";
@@ -207,7 +209,7 @@ struct Butter {
 	float z;
 };
 
-Butter butters[] = {
+Butter initialButters[] = {
 	{ 70.0f, 25.0f },  // Road 1
 	{ 50.0f, 50.0f },  // Road 2
 	{ 10.0f, 30.0f },  // Road 3
@@ -221,6 +223,8 @@ Butter butters[] = {
 	{ 40.0f, -30.0f }, // Road 10
 	{ 60.0f, -60.0f }  // Road 11
 };
+
+Butter butters[sizeof(initialButters) / sizeof(initialButters[0])]; // Array to hold the current positions of the butters
 
 const int NUM_BUTTERS = sizeof(butters) / sizeof(butters[0]);
 
@@ -756,6 +760,13 @@ void drawButter(const Butter& butter)
 	mu.popMatrix(gmu::MODEL);
 }
 
+void resetButters() {
+	for (int i = 0; i < NUM_BUTTERS; i++)
+	{
+		butters[i] = initialButters[i];
+	}
+}
+
 void drawOrange(const Orange& orange)
 {
 	mu.pushMatrix(gmu::MODEL);
@@ -957,6 +968,12 @@ void startCarFall() {
 	carBarbie.fallPitch = 0.0f;
 	carBarbie.fallRoll = 0.0f;
 
+	lives--;
+	if (lives <= 0) {
+		gameOver = true;
+		gameOverTimer = 0.0f;
+	}
+
 	// Guardar direção que o carro tinha quando saiu da mesa
 	float angleRad = carBarbie.angle * 3.14159265f / 180.0f;
 	fallDirX = sin(angleRad);
@@ -999,6 +1016,11 @@ void restartGame()
 	respawnCar();
 	lives = 5;
 	points = 0;
+	gameOver = false;
+	gameOverTimer = 0.0f;
+
+	resetButters();
+	initCheerios();
 
 	for (int i = 0; i < NUM_ORANGES; i++)
 	{
@@ -1237,7 +1259,8 @@ void checkCollisions() {
 			lives--;
 			respawnCar();
 			if (lives <= 0) {
-				paused = true;
+				gameOver = true;
+				gameOverTimer = 0.0f;
 			}
 			return;
 		}
@@ -1334,23 +1357,20 @@ void setupCamera(float tableWidth, float tableDepth, float tablePosY) {
 	}
 }
 
-void drawHUD()
-{
+void drawHUD() {
 	if (!fontLoaded)
 		return;
 
-	// Texto deve aparecer à frente de toda a cena
+	// Disable depth testing to ensure the text appears on top of everything
 	glDisable(GL_DEPTH_TEST);
-
-	// O fundo dos glyphs é transparente
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-	// Obter dimensões reais do viewport
+	// Get the actual dimensions of the viewport
 	int viewport[4];
 	glGetIntegerv(GL_VIEWPORT, viewport);
 
-	// Preparar matrizes para coordenadas do ecrã
+	// Prepare matrices for screen coordinates
 	mu.pushMatrix(gmu::MODEL);
 	mu.loadIdentity(gmu::MODEL);
 
@@ -1360,6 +1380,7 @@ void drawHUD()
 	mu.pushMatrix(gmu::PROJECTION);
 	mu.loadIdentity(gmu::PROJECTION);
 
+	// Set up an orthographic projection that matches the viewport dimensions
 	mu.ortho(
 		viewport[0],
 		viewport[0] + viewport[2] - 1,
@@ -1369,87 +1390,138 @@ void drawHUD()
 		1.0f
 	);
 
+	// Compute the combined projection-view-model matrix for rendering text
 	mu.computeDerivedMatrix(gmu::PROJ_VIEW_MODEL);
 
-	// LIVES
-	TextCommand livesText;
-	livesText.str = "Lives: " + std::to_string(lives);
-	livesText.position[0] = 20.0f;
-	livesText.position[1] = WinY - 40.0f;
-	livesText.size = 0.25f;
+	if (gameOver) {
+		// Clear the screen with black
+		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	livesText.color[0] = 1.0f;
-	livesText.color[1] = 1.0f;
-	livesText.color[2] = 1.0f;
-	livesText.color[3] = 1.0f;
+		// Text size grows over time, but is capped at a maximum size
+		float goSize = 0.65f + (gameOverTimer * 0.1f);
+		if (goSize > 1.1f) goSize = 1.1f; // Maximum size for the "GAME OVER" text
 
-	livesText.pvm = mu.get(gmu::PROJ_VIEW_MODEL);
+		// Initial text fade-in effect: alpha increases over time, but is capped at 1.0
+		float alpha = min(1.0f, gameOverTimer * 1.5f);
 
-	renderer.renderText(livesText);
+		// Built "GAME OVER" text
+		TextCommand goText;
+		goText.str = "GAME OVER";
+		goText.size = goSize;
+		// Center the text on the screen
+		goText.position[0] = WinX / 2.0f - (renderer.textWidth(goText.str) * goText.size) / 2.0f;
+		goText.position[1] = WinY / 2.0f + 10.0f;
+
+		// Dark red color for the "GAME OVER" text with the computed alpha for fade-in
+		goText.color[0] = 0.85f;
+		goText.color[1] = 0.05f;
+		goText.color[2] = 0.05f;
+		goText.color[3] = alpha;
+
+		goText.pvm = mu.get(gmu::PROJ_VIEW_MODEL);
+		renderer.renderText(goText);
+
+		// Subtitle text: "Press R to reset" appears after a short delay, with its own fade-in effect
+		if (goSize >= 1.1f) {
+			// Calculate fade-in starting from the moment expansion finishes
+			float timeAfterExpansion = gameOverTimer - 5.625f;
+			float resetAlpha = std::min(1.0f, timeAfterExpansion * 3.0f);
+
+			TextCommand resetText;
+			resetText.str = "Press R to reset";
+			resetText.size = 0.25f;
+			resetText.position[0] = WinX / 2.0f - (renderer.textWidth(resetText.str) * resetText.size) / 2.0f;
+			resetText.position[1] = WinY / 2.0f - 50.0f;
+
+			resetText.color[0] = 0.85f;
+			resetText.color[1] = 0.85f;
+			resetText.color[2] = 0.85f;
+			resetText.color[3] = resetAlpha; // Use 1.0f here instead if you want it to pop in instantly
+
+			resetText.pvm = mu.get(gmu::PROJ_VIEW_MODEL);
+			renderer.renderText(resetText);
+		}
+	}
+	else {
+		// LIVES
+		TextCommand livesText;
+		livesText.str = "Lives: " + std::to_string(lives);
+		livesText.position[0] = 20.0f;
+		livesText.position[1] = WinY - 40.0f;
+		livesText.size = 0.25f;
+
+		livesText.color[0] = 1.0f;
+		livesText.color[1] = 1.0f;
+		livesText.color[2] = 1.0f;
+		livesText.color[3] = 1.0f;
+
+		livesText.pvm = mu.get(gmu::PROJ_VIEW_MODEL);
+
+		renderer.renderText(livesText);
 
 
-	// POINTS
-	TextCommand pointsText;
-	pointsText.str = "Points: " + std::to_string(points);
-	pointsText.position[0] = 20.0f;
-	pointsText.position[1] = WinY - 70.0f;
-	pointsText.size = 0.25f;
+		// POINTS
+		TextCommand pointsText;
+		pointsText.str = "Points: " + std::to_string(points);
+		pointsText.position[0] = 20.0f;
+		pointsText.position[1] = WinY - 70.0f;
+		pointsText.size = 0.25f;
 
-	pointsText.color[0] = 1.0f;
-	pointsText.color[1] = 1.0f;
-	pointsText.color[2] = 1.0f;
-	pointsText.color[3] = 1.0f;
+		pointsText.color[0] = 1.0f;
+		pointsText.color[1] = 1.0f;
+		pointsText.color[2] = 1.0f;
+		pointsText.color[3] = 1.0f;
 
-	pointsText.pvm = mu.get(gmu::PROJ_VIEW_MODEL);
+		pointsText.pvm = mu.get(gmu::PROJ_VIEW_MODEL);
 
-	renderer.renderText(pointsText);
+		renderer.renderText(pointsText);
 
-	// PAUSED
-	if (paused)
-	{
-		TextCommand pauseText;
-		pauseText.str = "PAUSED";
-		pauseText.size = 1.0f;
+		// PAUSED
+		if (paused)
+		{
+			TextCommand pauseText;
+			pauseText.str = "PAUSED";
+			pauseText.size = 1.0f;
 
-		pauseText.position[0] = WinX / 2.0f - renderer.textWidth(pauseText.str) * pauseText.size / 2.0f;
-		pauseText.position[1] = WinY - 80;
+			pauseText.position[0] = WinX / 2.0f - renderer.textWidth(pauseText.str) * pauseText.size / 2.0f;
+			pauseText.position[1] = WinY - 80;
 
-		pauseText.color[0] = 1.0f;
-		pauseText.color[1] = 1.0f;
-		pauseText.color[2] = 1.0f;
-		pauseText.color[3] = 1.0f;
+			pauseText.color[0] = 1.0f;
+			pauseText.color[1] = 1.0f;
+			pauseText.color[2] = 1.0f;
+			pauseText.color[3] = 1.0f;
 
-		pauseText.pvm = mu.get(gmu::PROJ_VIEW_MODEL);
+			pauseText.pvm = mu.get(gmu::PROJ_VIEW_MODEL);
 
-		renderer.renderText(pauseText);
+			renderer.renderText(pauseText);
 
-		TextCommand restartText;
-		restartText.str = "Press R to restart";
-		restartText.size = 0.25f;
+			TextCommand restartText;
+			restartText.str = "Press R to restart";
+			restartText.size = 0.25f;
 
-		restartText.position[0] = WinX / 2.0f - renderer.textWidth(restartText.str) * restartText.size / 2.0f;
-		restartText.position[1] = WinY - 100.0f;
+			restartText.position[0] = WinX / 2.0f - renderer.textWidth(restartText.str) * restartText.size / 2.0f;
+			restartText.position[1] = WinY - 100.0f;
 
-		restartText.color[0] = 1.0f;
-		restartText.color[1] = 1.0f;
-		restartText.color[2] = 1.0f;
-		restartText.color[3] = 1.0f;
+			restartText.color[0] = 1.0f;
+			restartText.color[1] = 1.0f;
+			restartText.color[2] = 1.0f;
+			restartText.color[3] = 1.0f;
 
-		restartText.pvm = mu.get(gmu::PROJ_VIEW_MODEL);
+			restartText.pvm = mu.get(gmu::PROJ_VIEW_MODEL);
 
-		renderer.renderText(restartText);
+			renderer.renderText(restartText);
+		}
 	}
 
-	// Restaurar matrizes
+	// Restore matrices and OpenGL state
 	mu.popMatrix(gmu::PROJECTION);
 	mu.popMatrix(gmu::VIEW);
 	mu.popMatrix(gmu::MODEL);
 
-	// Restaurar estado OpenGL
 	glDisable(GL_BLEND);
 	glEnable(GL_DEPTH_TEST);
 
-	// renderText mudou o shader ativo
 	renderer.activateRenderMeshesShaderProg();
 }
 
@@ -1492,7 +1564,9 @@ void renderSim(void) {
 	}
 	if (!paused)
 	{
-		if (carFalling) {
+		if (gameOver) {
+			gameOverTimer += deltaTime;
+		} else if (carFalling) {
 			updateCarFall(deltaTime);
 		}
 		else {
@@ -1806,7 +1880,7 @@ void processKeys(unsigned char key, int xx, int yy)
 
 		case 'r':
 		case 'R':
-			if (paused)
+			if (paused || gameOver)
 			{
 				restartGame();
 				printf("Game restarted\n");
@@ -2329,6 +2403,7 @@ int main(int argc, char **argv) {
 	ilInit();
 
 	buildScene();
+	resetButters();
 	initCheerios();
 
 	if(!renderer.setRenderMeshesShaderProg("shaders/mesh.vert", "shaders/mesh.frag") || 
