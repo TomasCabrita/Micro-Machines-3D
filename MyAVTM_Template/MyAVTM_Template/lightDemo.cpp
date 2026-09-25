@@ -1453,6 +1453,111 @@ void drawHUD()
 	renderer.activateRenderMeshesShaderProg();
 }
 
+// desenhar exatamente a mesma coisa, mas na reflexão
+void drawReflectableObjects(float cheerioPosY, float candleBasePosY, float candleWickPosY) {
+
+	// Cheerios
+	for (const auto& cheerio : cheerioInstances) {
+		drawObject(CHEERIO_MESH, cheerio.x, cheerioPosY, cheerio.z, 1.0f, 1.0f, 1.0f);
+	}
+
+	// Velas
+	drawCenteredObject(CANDLE_BASE_MESH, 51.25f, candleBasePosY, 32.25f,
+		1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0);
+
+	drawCenteredObject(CANDLE_WICK_MESH, 51.25f, candleWickPosY, 32.25f,
+		1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0);
+
+	drawCenteredObject(CANDLE_BASE_MESH, -5.5f, candleBasePosY, 48.5f,
+		1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0);
+
+	drawCenteredObject(CANDLE_WICK_MESH, -5.5f, candleWickPosY, 48.5f,
+		1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0);
+
+	drawCenteredObject(CANDLE_BASE_MESH, -45.5f, candleBasePosY, 50.5f,
+		1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0);
+
+	drawCenteredObject(CANDLE_WICK_MESH, -45.5f, candleWickPosY, 50.5f,
+		1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0);
+
+	drawCenteredObject(CANDLE_BASE_MESH, -35.5f, candleBasePosY, -50.5f,
+		1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0);
+
+	drawCenteredObject(CANDLE_WICK_MESH, -35.5f, candleWickPosY, -50.5f,
+		1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0);
+
+	drawCenteredObject(CANDLE_BASE_MESH, 20.5f, candleBasePosY, -19.0f,
+		1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0);
+
+	drawCenteredObject(CANDLE_WICK_MESH, 20.5f, candleWickPosY, -19.0f,
+		1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0);
+
+	drawCenteredObject(CANDLE_BASE_MESH, 55.5f, candleBasePosY, -41.0f,
+		1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0);
+
+	drawCenteredObject(CANDLE_WICK_MESH, 55.5f, candleWickPosY, -41.0f,
+		1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0);
+
+	// Manteigas
+	for (int i = 0; i < NUM_BUTTERS; i++) {
+		drawButter(butters[i]);
+	}
+
+	// Laranjas
+	for (int i = 0; i < NUM_ORANGES; i++) {
+		drawOrange(oranges[i]);
+	}
+
+	// Carro
+	drawCar(carBarbie);
+}
+
+
+void createTableReflectionMask(float tableWidth, float tableDepth, float tableTopY) {
+
+	glEnable(GL_STENCIL_TEST);
+	glStencilMask(0xFF);
+
+	// Sempre que a mesa for desenhada: stencil = 1
+	glStencilFunc(GL_ALWAYS, 1, 0xFF);
+	glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+	// sem cores
+	glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+	// Nem alterar o depth buffer
+	glDepthMask(GL_FALSE);
+	// Uma camada muito fina exatamente no topo da mesa
+	drawObject(TABLE_MESH, 0.0f, tableTopY, 0.0f, tableWidth, 0.01f, tableDepth);
+	// Restaurar
+	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+	glDepthMask(GL_TRUE);
+
+}
+
+void drawPlanarReflection(float tableTopY, float cheerioPosY, float candleBasePosY, float candleWickPosY) {
+	// Só desenhar onde o stencil == 1
+	glStencilFunc(GL_EQUAL, 1, 0xFF);
+	glStencilMask(0x00);
+	glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+
+	mu.pushMatrix(gmu::MODEL);
+	// plano Y
+	mu.translate(gmu::MODEL, 0.0f, 2.0f * tableTopY, 0.0f);
+	// scale negativo para inverter
+	mu.scale(gmu::MODEL, 1.0f, -1.0f, 1.0f);
+	glDisable(GL_CULL_FACE);
+	drawReflectableObjects(cheerioPosY, candleBasePosY, candleWickPosY);
+	
+	glEnable(GL_CULL_FACE);
+
+	mu.popMatrix(gmu::MODEL);
+
+	glStencilMask(0xFF);
+	glDisable(GL_STENCIL_TEST);
+
+}
+
+
+
 // ============================================================================
 // MAIN SIMULATION LOOP
 // ============================================================================
@@ -1504,7 +1609,7 @@ void renderSim(void) {
 	}
 
 	// Clear the color and depth buffers to prepare for rendering the new frame
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 	// Activate the shader program for rendering meshes with illumination
 	renderer.activateRenderMeshesShaderProg();
 	// Set the texture units for the shader program
@@ -1524,7 +1629,7 @@ void renderSim(void) {
 	dirEye[0] = dirAux[0]; dirEye[1] = dirAux[1]; dirEye[2] = dirAux[2];
 	renderer.setDirLightMode(dayMode, dirEye);
 
-	// Set point light mode (candles) and transform the candle positions to eye space
+		// Set point light mode (candles) and transform the candle positions to eye space
 	float candleEye[6][4];
 	for (int i = 0; i < 6; i++) {
 		float aux[4];
@@ -1572,8 +1677,20 @@ void renderSim(void) {
 	float cosCutOff = cosf(spotCosCutOff * DEG2RAD);
 	renderer.setSpotLightMode(headlightMode, spotPosEye, spotDirEye, cosCutOff, spotEx);
 
+	float tableTopY = tablePosY + tableHeight * 0.5f;
+	createTableReflectionMask( tableWidth, tableDepth, tableTopY);
+	drawPlanarReflection(tableTopY, cheerioPosY, candleBasePosY, candleWickPosY);
+
+	// reflexões ativas para a mesa
+	glEnable(GL_BLEND);
+	glBlendColor(0.0f, 0.0f, 0.0f, 0.80f);
+	glBlendFunc(GL_CONSTANT_ALPHA, GL_ONE_MINUS_CONSTANT_ALPHA);
+
 	// Draw the table
 	drawObject(TABLE_MESH, 0.0f,  tablePosY, 0.0f, tableWidth, tableHeight, tableDepth);
+
+	// já não estão ativas
+	glDisable(GL_BLEND);
 
 	// Draw the roads
 	drawObject(ROAD_MESH, 70.0f,  roadPosY, -5.0f,  roadWidth, roadHeight, 90.0f,	  0.0f, 4); // 1: Start road
@@ -2275,7 +2392,7 @@ int main(int argc, char **argv) {
 
 //  GLUT initialization
 	glutInit(&argc, argv);
-	glutInitDisplayMode(GLUT_DEPTH|GLUT_DOUBLE|GLUT_RGBA|GLUT_MULTISAMPLE);
+	glutInitDisplayMode(GLUT_DEPTH|GLUT_DOUBLE|GLUT_RGBA|GLUT_MULTISAMPLE|GLUT_STENCIL);
 
 	glutInitContextVersion (4, 3);
 	glutInitContextProfile (GLUT_CORE_PROFILE );
@@ -2313,6 +2430,7 @@ int main(int argc, char **argv) {
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_CULL_FACE);
 	glEnable(GL_MULTISAMPLE);
+	glClearStencil(0);
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
 	printf ("Vendor: %s\n", glGetString (GL_VENDOR));
