@@ -17,18 +17,16 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <algorithm>
+#include <cstdlib>
+#include <ctime>
 
-// include GLEW to access OpenGL 3.3 functions
+// Include GLEW to access OpenGL 3.3 functions
 #include <GL/glew.h>
-
 // GLUT is the toolkit to interface with the OS
 #include <GL/freeglut.h>
 
 #include <IL/il.h>
-
-#include <algorithm>
-#include <cstdlib>
-#include <ctime>
 
 #include "renderer.h"
 #include "shader.h"
@@ -38,57 +36,57 @@
 
 using namespace std;
 
-#define CAPTION "AVTM 2026 Welcome Demo"
+// ============================================================================
+// GLOBAL CONFIGURATION
+// ============================================================================
+
+#define CAPTION "AVTM 2026 Micro Machines 3D"
+#define FPS 60
+
 int WindowHandle = 0;
 int WinX = 640, WinY = 480;
-
+float aspectRatio = 640.0f / 480.0f;
 unsigned int FrameCount = 0;
 
+// Game state variables
 int lives = 5;
 int points = 0;
 bool paused = false;
 
-//File with the font
+// Font file path
 const string fontPathFile = "fonts/arial.ttf";
+bool fontLoaded = false;
 
-//Object of class gmu (Graphics Math Utility) to manage math and matrix operations
-gmu mu;
-
-//Object of class renderer to manage the rendering of meshes and ttf-based bitmap text
-Renderer renderer;
+// Engine state variables
+gmu mu; // Object of class mathUtility to manage the model, view and projection matrices
+Renderer renderer; // Object of class Renderer to manage the rendering of meshes and textures
 	
-// Camera Position
+// Camera position and orientation
 float camX, camY, camZ;
-
-// Camera Spherical Coordinates
 float alpha = 57.0f, _beta = 18.0f;
 float r = 45.0f;
 
-//Cameras
-//1 = satellite orthographic
-//2 = satellite perspective
-//3 = car following perspective
+// Cameras
+// 1 = Fixed satellite orthographic
+// 2 = Fixed satellite perspective
+// 3 = Car following perspective
 int CameraMode = 1;
-
-//Aspect ratio da janela
-float aspectRatio = 640.0f / 480.0f;
-
 
 // Mouse Tracking Variables
 int startX, startY, tracking = 0;
 
-// Posição inicial - carro
+// Car initial position and orientation
 const float CAR_START_X = 70.0f;
 const float CAR_START_Z = -15.0f;
 const float CAR_START_ANGLE = 0.0f;
 
-// Movimento carro
+// Movement keys state
 bool keyFrente = false;
 bool keyTras = false;
 bool keyDir = false;
 bool keyEsq = false;
 
-// estados cair
+// Off-table fall state variables
 bool carFalling = false;
 float fallTimer = 0.0f;
 float fallVelocityY = 0.0f;
@@ -98,12 +96,10 @@ float fallHorizontalSpeed = 0.0f;
 const float FALL_GRAVITY = 35.0f;
 const float FALL_RESPAWN_TIME = 2.2f;
 
-// Frame counting and FPS computation
-#define FPS 60
-long myTime,timebase = 0,frame = 0;
-char s[32];
+// Time tracking variables
+long myTime, timebase = 0, frame = 0;
 
-// Directional light (Day/Night mode)
+// Directional light (Day/Night)
 bool dayMode = true;
 float lightDir[4] = { -0.5f, -1.0f, -0.5f, 0.0f };
 
@@ -123,64 +119,88 @@ bool headlightMode = false;
 float spotCosCutOff = 35.0f;
 float spotEx = 8.0f;
 
-//float lightPos[4] = {4.0f, 5.0f, 2.0f, 1.0f};
-float lightPos[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
-
-//Spotlight
-bool spotlight_mode = false;
-float coneDir[4] = { 0.0f, -0.0f, -1.0f, 0.0f };
-
-bool fontLoaded = false;
-
 // Constants for mesh IDs
-const int TABLE_MESH = 0; // table
-const int ROAD_MESH = 1; // road
-const int MARGIN_MESH = 2; // margin
-const int CAR_NORMAL_MESH = 3; // pink
-const int CAR_METAL_MESH = 4; // metal
-const int CAR_GLASS_MESH = 5; // gray-blue glass
-const int CAR_WHEEL_MESH = 6; // tires
-const int CAR_LIGHT_MESH = 7; // headlights
-const int CAR_PLATE_MESH = 8; // plate
-const int CANDLE_BASE_MESH = 9; // candle base
-const int CANDLE_WICK_MESH = 10; // candle wick
+const int TABLE_MESH		 = 0; // table
+const int ROAD_MESH			 = 1; // road
+const int MARGIN_MESH		 = 2; // margin
+const int CAR_NORMAL_MESH	 = 3; // pink
+const int CAR_METAL_MESH	 = 4; // metal
+const int CAR_GLASS_MESH	 = 5; // gray-blue glass
+const int CAR_WHEEL_MESH	 = 6; // tires
+const int CAR_LIGHT_MESH	 = 7; // headlights
+const int CAR_PLATE_MESH	 = 8; // plate
+const int CANDLE_BASE_MESH	 = 9; // candle base
+const int CANDLE_WICK_MESH	 = 10; // candle wick
 const int BUTTER_YELLOW_MESH = 11; // butter
-const int BUTTER_BEIGE_MESH = 12; // beige part of the butter package
-const int BUTTER_BLUE_MESH = 13; // blue part of the butter package
-const int ORANGE_MESH = 14; // orange
-const int ORANGE_BLACK_MESH = 15; // black part of the orange
-const int CHEERIO_MESH = 16; // cheerio
+const int BUTTER_BEIGE_MESH  = 12; // beige part of the butter package
+const int BUTTER_BLUE_MESH   = 13; // blue part of the butter package
+const int ORANGE_MESH		 = 14; // orange
+const int ORANGE_BLACK_MESH  = 15; // black part of the orange
+const int CHEERIO_MESH		 = 16; // cheerio
+
+// ============================================================================
+// DATA STRUCTURES
+// ============================================================================
+
+// Car structure
 
 struct Car {
-	// Posição no mundo
+	// World position and orientation
 	float x = CAR_START_X;
 	float y = 0.0f;
 	float z = CAR_START_Z;
-
-	// Orientação
 	float angle = CAR_START_ANGLE;
 	float dir[3] = { 0.0f, 0.0f, 1.0f };
 
-	// Cair
+	// Fall animation state
 	float fallPitch = 0.0f;
 	float fallRoll = 0.0f;
 
-	// Dimensões gerais
+	// Dimensions
 	float width = 4.5f;
 	float height = 3.15f;
 	float depth = 7.0f;
 
-	// Movimento
+	// Movement state
 	float speed = 0.0f;
 	float acceleration = 20.0f;
 	float maxSpeed = 80.0f;
 
-	// rodas rodar
-	float wheelSpin = 0.0f;    // as rodas rodam
-	float steerVisual = 0.0f;  // as rodas viram
+	// Wheel and steering state
+	float wheelSpin = 0.0f;   // Wheel rotation 
+	float steerVisual = 0.0f; // Wheel visual steering angle
 };
 
 Car carBarbie;
+
+struct CarMeshIDs {
+	int paint, trim, trimCyl, chrome, chromeCyl, rubber;
+	int interior, seat, headlight, taillight, plate, plateBlue;
+	int glass, glassTri, mirror, steering;
+};
+
+CarMeshIDs carMesh;
+
+struct GlassPiece {
+	int mesh;
+	bool box;
+	float x, y, z;
+	float sx, sy, sz;
+	float rotX, rotZ;
+	float cx, cy, cz;
+	float depth;
+};
+
+// Car design constants
+// belt = window base
+const float CAR_BELT = 1.85f;
+const float CAR_ROOF = 2.85f;
+const float CAR_WS_BASE = 1.45f, CAR_WS_TOP = 0.50f; // Windshield bounds (z)
+const float CAR_RW_BASE = -1.45f, CAR_RW_TOP = -0.65f; // Rear window bounds (z)
+const float CAR_GLASS_X = 2.15f;
+const float CAR_WHEEL_R = 0.80f; // Wheel radius
+
+// Butter structure
 
 struct Butter {
 	float x;
@@ -188,22 +208,23 @@ struct Butter {
 };
 
 Butter butters[] = {
-	//{ 70.0f, -5.0f },
-	{ 70.0f, 25.0f },    // estrada 1
-	{ 50.0f, 50.0f },    // estrada 2
-	{ 10.0f, 30.0f },    // estrada 3
-	{-20.0f, 50.0f },    // estrada 4
-	{-45.0f, 70.0f },    // estrada 5
-	{-70.0f, 30.0f },    // estrada 6
-	{-70.0f, -35.0f },   // estrada 6
-	{-40.0f, -70.0f },   // estrada 7
-	{ 0.0f, -35.0f },    // estrada 8
-	{ 20.0f, 0.0f },     // estrada 9
-	{ 40.0f, -30.0f },   // estrada 10
-	{ 60.0f, -60.0f }    // estrada 11
+	{ 70.0f, 25.0f },  // Road 1
+	{ 50.0f, 50.0f },  // Road 2
+	{ 10.0f, 30.0f },  // Road 3
+	{-20.0f, 50.0f },  // Road 4
+	{-45.0f, 70.0f },  // Road 5
+	{-70.0f, 30.0f },  // Road 6
+	{-70.0f, -35.0f }, // Road 6
+	{-40.0f, -70.0f }, // Road 7
+	{ 0.0f, -35.0f },  // Road 8
+	{ 20.0f, 0.0f },   // Road 9
+	{ 40.0f, -30.0f }, // Road 10
+	{ 60.0f, -60.0f }  // Road 11
 };
 
 const int NUM_BUTTERS = sizeof(butters) / sizeof(butters[0]);
+
+// Orange structure
 
 struct Orange {
 	float x;
@@ -216,19 +237,19 @@ struct Orange {
 };
 
 Orange oranges[] = {
-	{-60.0f, -55.0f,   1.0f,  0.0f, 0.06f,  0.000005f,      0.0f},
-	{ 60.0f,  15.0f,  -1.0f,  0.0f, 0.08f,  0.000005f,      0.0f},
-	{-55.0f,  60.0f,   0.0f, -1.0f, 0.10f,  0.000005f,      0.0f},
-	{ 45.0f, -60.0f,   0.0f,  1.0f, 0.12f,  0.000005f,      0.0f}
+	{-60.0f, -55.0f,  1.0f,  0.0f, 0.06f, 0.000005f, 0.0f},
+	{ 60.0f,  15.0f, -1.0f,  0.0f, 0.08f, 0.000005f, 0.0f},
+	{-55.0f,  60.0f,  0.0f, -1.0f, 0.10f, 0.000005f, 0.0f},
+	{ 45.0f, -60.0f,  0.0f,  1.0f, 0.12f, 0.000005f, 0.0f}
 };
 
 const int NUM_ORANGES = sizeof(oranges) / sizeof(oranges[0]);
 
+// Cheerios structure
+
 struct CheeriosLine {
-	float x1;
-	float z1;
-	float x2;
-	float z2;
+	float x1, z1;
+	float x2, z2;
 };
 
 CheeriosLine cheeriosLine[] = {
@@ -263,18 +284,22 @@ struct CheerioInstance {
 	float z;
 };
 
-vector<CheerioInstance> cheerioInstances;
+vector<CheerioInstance> cheerioInstances; // Vector to store the positions of cheerios along the lines
 
 const int NUM_CHEERIOS_LINES = sizeof(cheeriosLine) / sizeof(cheeriosLine[0]);
+
+// Other structures
 
 struct AABB {
 	float minX, maxX;
 	float minZ, maxZ;
 };
 
-/// ::::::::::::::::::::::::::::::::::::::::::::::::AUXILIARY FUNCIONS:::::::::::::::::::::::::::::::::::::::::::::::::://///
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
 
-// Auxiliary function to draw a mesh object with the given position, scale, and mesh ID
+// Draw a mesh object with the given position, scale, and mesh ID, centered at its local origin
 void drawObject(int meshID,
 	float posX, float posY, float posZ,
 	float scaleX, float scaleY, float scaleZ,
@@ -282,6 +307,7 @@ void drawObject(int meshID,
 	int texMode = 1) {
 
 	mu.pushMatrix(gmu::MODEL);
+	
 	mu.translate(gmu::MODEL, posX, posY, posZ); // Translate the cube to the desired position
 	mu.rotate(gmu::MODEL, rotAngle, 1.0f, 0.0f, 0.0f); // Rotate the cube around the X-axis
 	mu.scale(gmu::MODEL, scaleX, scaleY, scaleZ); // Scale the cube to the desired size
@@ -292,7 +318,7 @@ void drawObject(int meshID,
 
 	dataMesh data;
 	data.meshID = meshID;
-	data.texMode = texMode; // 0:no texturing; 1:modulate diffuse color with texel color; 2:diffuse color is replaced by texel color; 3: multitexturing
+	data.texMode = texMode; // 0: No texturing; 1: Modulate diffuse color with texel color; 2: Diffuse color is replaced by texel color; 3: Multitexturing
 	data.vm = mu.get(gmu::VIEW_MODEL),
 		data.pvm = mu.get(gmu::PROJ_VIEW_MODEL);
 	data.normal = mu.getNormalMatrix();
@@ -300,7 +326,7 @@ void drawObject(int meshID,
 	mu.popMatrix(gmu::MODEL);
 }
 
-// Auxiliary function to draw a mesh object with the given position, scale, rotation, and mesh ID, centered at the origin
+// Draw a mesh object with the given position, scale, rotation, and mesh ID, centered at the origin
 void drawCenteredObject(
 	int meshID,
 	float posX, float posY, float posZ,
@@ -312,9 +338,9 @@ void drawCenteredObject(
 
 	mu.translate(gmu::MODEL, posX, posY, posZ);
 
-	mu.rotate(gmu::MODEL, rotX, 1.0f, 0.0f, 0.0f);
-	mu.rotate(gmu::MODEL, rotY, 0.0f, 1.0f, 0.0f);
-	mu.rotate(gmu::MODEL, rotZ, 0.0f, 0.0f, 1.0f);
+	mu.rotate(gmu::MODEL, rotX, 1.0f, 0.0f, 0.0f); // Rotate around X-axis
+	mu.rotate(gmu::MODEL, rotY, 0.0f, 1.0f, 0.0f); // Rotate around Y-axis
+	mu.rotate(gmu::MODEL, rotZ, 0.0f, 0.0f, 1.0f); // Rotate around Z-axis
 
 	mu.scale(gmu::MODEL, scaleX, scaleY, scaleZ);
 
@@ -328,29 +354,11 @@ void drawCenteredObject(
 	data.pvm = mu.get(gmu::PROJ_VIEW_MODEL);
 	data.pvm = mu.get(gmu::PROJ_VIEW_MODEL);
 	data.normal = mu.getNormalMatrix();
-
 	renderer.renderMesh(data);
-
 	mu.popMatrix(gmu::MODEL);
 }
 
-// indices das malhas do carro
-struct CarMeshIDs {
-	int paint, trim, trimCyl, chrome, chromeCyl, rubber;
-	int interior, seat, headlight, taillight, plate, plateBlue;
-	int glass, glassTri, mirror, steering;
-};
-CarMeshIDs carMesh;
-
-// cintura = base dos vidros
-const float CAR_BELT = 1.85f;
-const float CAR_ROOF = 2.85f;
-const float CAR_WS_BASE = 1.45f, CAR_WS_TOP = 0.50f; // para-brisas: z da base e do topo
-const float CAR_RW_BASE = -1.45f, CAR_RW_TOP = -0.65f; // traseiro: z da base e do topo
-const float CAR_GLASS_X = 2.15f;
-const float CAR_WHEEL_R = 0.80f; // raio
-
-// indices materiais e malhas
+// Helper to register car submeshes with their material properties
 static int addCarMesh(MyMesh m, const float amb[4], const float diff[4], const float spec[4], float shininess) {
 	const float noEmissive[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
 	memcpy(m.mat.ambient, amb, 4 * sizeof(float));
@@ -363,17 +371,16 @@ static int addCarMesh(MyMesh m, const float amb[4], const float diff[4], const f
 	return (int)renderer.myMeshes.size() - 1;
 }
 
-// Cria todas as malhas do carro
+// Build the car meshes with their respective materials and properties
 void buildCarMeshes()
 {
-	// Cilindro, esfera e toro "unitários"
-	// Pintura cor-de-rosa
+	// Pink paint (cilinder, sphere and torus)
 	float paintA[] = { 0.25f, 0.03f, 0.15f, 1.0f };
 	float paintD[] = { 0.95f, 0.20f, 0.60f, 1.0f };
 	float paintS[] = { 0.90f, 0.80f, 0.90f, 1.0f };
 	carMesh.paint = addCarMesh(createCube(), paintA, paintD, paintS, 100.0f);
 
-	// Plástico preto brilhante (para-choques, grelha, rodas, pilar B, jantes)
+	// Glossy black plastic (bumpers, grille, wheels, pillar B, rims)
 	float trimA[] = { 0.03f, 0.03f, 0.03f, 1.0f };
 	float trimD[] = { 0.08f, 0.08f, 0.09f, 1.0f };
 	float trimS[] = { 0.50f, 0.50f, 0.55f, 1.0f };
@@ -381,32 +388,32 @@ void buildCarMeshes()
 	carMesh.trimCyl = addCarMesh(createCylinder(1.0f, 1.0f, 32), trimA, trimD, trimS, 60.0f);
 	carMesh.steering = addCarMesh(createTorus(0.8f, 1.0f, 32, 12), trimA, trimD, trimS, 60.0f);
 
-	// Cromado (puxadores, rodas dentro, tubo)
+	// Chrome metal (handles, inner rims, exhaust pipe)
 	float chromeA[] = { 0.25f, 0.25f, 0.27f, 1.0f };
 	float chromeD[] = { 0.55f, 0.56f, 0.60f, 1.0f };
 	float chromeS[] = { 1.00f, 1.00f, 1.00f, 1.0f };
 	carMesh.chrome = addCarMesh(createCube(), chromeA, chromeD, chromeS, 180.0f);
 	carMesh.chromeCyl = addCarMesh(createCylinder(1.0f, 1.0f, 32), chromeA, chromeD, chromeS, 180.0f);
 
-	// Borracha: TORO flanco arredondado
+	// Rubber tires (torus)
 	float rubberA[] = { 0.02f, 0.02f, 0.02f, 1.0f };
 	float rubberD[] = { 0.05f, 0.05f, 0.05f, 1.0f };
 	float rubberS[] = { 0.15f, 0.15f, 0.15f, 1.0f };
 	carMesh.rubber = addCarMesh(createTorus(0.45f, 1.0f, 32, 16), rubberA, rubberD, rubberS, 10.0f);
 
-	// dentro do carro: tabliê, forros das portas e chão (rosa-velho)
+	// Old pink (interior dashboard, door panels, floor)
 	float interiorA[] = { 0.35f, 0.24f, 0.28f, 1.0f };
 	float interiorD[] = { 0.85f, 0.60f, 0.68f, 1.0f };
 	float interiorS[] = { 0.15f, 0.15f, 0.15f, 1.0f };
 	carMesh.interior = addCarMesh(createCube(), interiorA, interiorD, interiorS, 15.0f);
 
-	// bancos (creme quase branco)
+	// Creme almost white (seats)
 	float seatA[] = { 0.55f, 0.52f, 0.48f, 1.0f };
 	float seatD[] = { 0.97f, 0.94f, 0.88f, 1.0f };
 	float seatS[] = { 0.20f, 0.20f, 0.20f, 1.0f };
 	carMesh.seat = addCarMesh(createCube(), seatA, seatD, seatS, 20.0f);
 
-	// Faróis (esfera achatada), luzes atrás e matrículas (com a ceninha azul)
+	// Lights (oblate sphere), taillights and plates (with the little blue detail)
 	float headA[] = { 0.60f, 0.60f, 0.55f, 1.0f };
 	float headD[] = { 1.00f, 0.97f, 0.85f, 1.0f };
 	float headS[] = { 1.00f, 1.00f, 1.00f, 1.0f };
@@ -427,15 +434,15 @@ void buildCarMeshes()
 	float euS[] = { 0.25f, 0.25f, 0.25f, 1.0f };
 	carMesh.plateBlue = addCarMesh(createCube(), euA, euD, euS, 40.0f);
 
-	// alpha: opacidade; cor: ambeinte; especular: fraco
+	// Transparent glass (alpha: opacity; color: ambient; specular: weak)
 	float glassA[] = { 0.30f, 0.50f, 0.75f, 0.25f };
 	float glassD[] = { 0.20f, 0.35f, 0.55f, 0.25f };
 	float glassS[] = { 0.35f, 0.35f, 0.40f, 0.25f };
 	carMesh.glass = addCarMesh(createCube(), glassA, glassD, glassS, 120.0f);
-	// cilindro de 3 lados = prisma triangular: cantos das janelas junto aos pilares A e C
+	// Cilinder with 3 sides = triangular prism: corners of the windows next to pillars A and C
 	carMesh.glassTri = addCarMesh(createCylinder(1.0f, 1.0f, 3), glassA, glassD, glassS, 120.0f);
 
-	// Espelho dos retrovisores: mais azul e um pouco menos transparente
+	// Side mirrors (more blue and less transparent)
 	// TO DO: refletir (Esperar pelo enunciado)
 	float mirrorA[] = { 0.35f, 0.55f, 0.85f, 0.55f };
 	float mirrorD[] = { 0.35f, 0.55f, 0.90f, 0.55f };
@@ -443,20 +450,17 @@ void buildCarMeshes()
 	carMesh.mirror = addCarMesh(createCube(), mirrorA, mirrorD, mirrorS, 200.0f);
 }
 
-// cubo centrada em (x,y,z) com tamanho (sx,sy,sz) e rotação opcional em X
-static void carBox(int mesh, float x, float y, float z, float sx, float sy, float sz, float rotX = 0.0f)
-{
+// Helpers for car positioning and drawing, using the car's mesh IDs and dimensions
+static void carBox(int mesh, float x, float y, float z, float sx, float sy, float sz, float rotX = 0.0f) {
 	drawObject(mesh, x, y, z, sx, sy, sz, rotX, 0);   // 0: sem textura
 }
 
-// Malha já centrada (cilindro, esfera, toro): escala e rotações em X, Y, Z
 static void carShape(int mesh, float x, float y, float z, float sx, float sy, float sz,
-	float rx = 0.0f, float ry = 0.0f, float rz = 0.0f)
-{
+	float rx = 0.0f, float ry = 0.0f, float rz = 0.0f) {
 	drawCenteredObject(mesh, x, y, z, sx, sy, sz, rx, ry, rz, 0);
 }
 
-// Peça inclinada: devolve o centro, o comprimento e o ângulo de rotação em X (graus)
+// Computes spacial positioning and X rotation for sloped surfaces
 static void slopeParams(float yA, float zA, float yB, float zB,
 	float& yc, float& zc, float& len, float& angDeg)
 {
@@ -467,94 +471,96 @@ static void slopeParams(float yA, float zA, float yB, float zB,
 	angDeg = atan2f(dz, dy) * 180.0f / 3.14159265f;
 }
 
-// base do carro, estrutura e detalhes exteriores (tudo opaco)
-static void drawCarBody()
-{
+// ============================================================================
+// CAR DRAWING FUNCTIONS
+// ============================================================================
+
+// Car base, structure, and exterior details (all opaque)
+static void drawCarBody() {
 	const int P = carMesh.paint, T = carMesh.trim;
 	float yc, zc, len, ang;
 
-	carBox(carMesh.interior, 0.0f, 0.45f, 0.0f, 4.18f, 0.20f, 3.00f); // chão do carro
-	carBox(T, 0.0f, 0.90f, 2.35f, 3.00f, 1.10f, 1.70f); // bloco do chão á frente
-	carBox(T, 0.0f, 0.90f, -2.35f, 3.00f, 1.10f, 1.70f); // bloco do chão atrás
-	carBox(T, 0.0f, 0.90f, 1.45f, 4.18f, 1.10f, 0.10f); // teto da frente
-	carBox(T, 0.0f, 0.90f, -1.45f, 4.18f, 1.10f, 0.10f); // teto de trás
+	carBox(carMesh.interior, 0.0f, 0.45f, 0.0f, 4.18f, 0.20f, 3.00f); // Car floor
+	carBox(T, 0.0f, 0.90f, 2.35f, 3.00f, 1.10f, 1.70f); // Front floor block
+	carBox(T, 0.0f, 0.90f, -2.35f, 3.00f, 1.10f, 1.70f); // Back floor block
+	carBox(T, 0.0f, 0.90f, 1.45f, 4.18f, 1.10f, 0.10f); // Roof front
+	carBox(T, 0.0f, 0.90f, -1.45f, 4.18f, 1.10f, 0.10f); // Roof back
 
-	carBox(P, 2.17f, 1.10f, 0.0f, 0.16f, 1.50f, 3.00f); // portas esquerda
-	carBox(P, -2.17f, 1.10f, 0.0f, 0.16f, 1.50f, 3.00f); // portas direita
-	carBox(P, 0.0f, 1.65f, 2.45f, 4.50f, 0.40f, 2.10f); // capo
-	carBox(P, 0.0f, 1.65f, -2.45f, 4.50f, 0.40f, 2.10f); // bagagem
-	carBox(P, 0.0f, 1.20f, 3.35f, 4.50f, 0.50f, 0.30f); // frente vertical
-	carBox(P, 0.0f, 1.20f, -3.35f, 4.50f, 0.50f, 0.30f); // traseira vertical
+	carBox(P, 2.17f, 1.10f, 0.0f, 0.16f, 1.50f, 3.00f); // Left doors
+	carBox(P, -2.17f, 1.10f, 0.0f, 0.16f, 1.50f, 3.00f); // Right doors
+	carBox(P, 0.0f, 1.65f, 2.45f, 4.50f, 0.40f, 2.10f); // Bonnet
+	carBox(P, 0.0f, 1.65f, -2.45f, 4.50f, 0.40f, 2.10f); // Baggage
+	carBox(P, 0.0f, 1.20f, 3.35f, 4.50f, 0.50f, 0.30f); // Front vertical
+	carBox(P, 0.0f, 1.20f, -3.35f, 4.50f, 0.50f, 0.30f); // Rear vertical
 
-	carBox(P, 0.0f, CAR_ROOF + 0.05f, -0.07f, 4.40f, 0.10f, 1.30f); // tejadilho
+	carBox(P, 0.0f, CAR_ROOF + 0.05f, -0.07f, 4.40f, 0.10f, 1.30f); // Roof top
 	slopeParams(CAR_BELT, CAR_WS_BASE, CAR_ROOF, CAR_WS_TOP, yc, zc, len, ang);
-	carBox(P, 2.14f, yc, zc, 0.14f, len, 0.14f, ang); // pilar A esquerdo
-	carBox(P, -2.14f, yc, zc, 0.14f, len, 0.14f, ang); // pilar A direito
+	carBox(P, 2.14f, yc, zc, 0.14f, len, 0.14f, ang); // Left pillar A
+	carBox(P, -2.14f, yc, zc, 0.14f, len, 0.14f, ang); // Right pillar A
 	slopeParams(CAR_BELT, CAR_RW_BASE, CAR_ROOF, CAR_RW_TOP, yc, zc, len, ang);
-	carBox(P, 2.14f, yc, zc, 0.14f, len, 0.14f, ang); // pilar C esquerdo
-	carBox(P, -2.14f, yc, zc, 0.14f, len, 0.14f, ang); // pilar C direito
-	carBox(T, 2.16f, 2.35f, -0.10f, 0.12f, 1.00f, 0.20f); // pilar B esquerdo
-	carBox(T, -2.16f, 2.35f, -0.10f, 0.12f, 1.00f, 0.20f); // pilar B direito
+	carBox(P, 2.14f, yc, zc, 0.14f, len, 0.14f, ang); // Left pillar C
+	carBox(P, -2.14f, yc, zc, 0.14f, len, 0.14f, ang); // Right pillar C
+	carBox(T, 2.16f, 2.35f, -0.10f, 0.12f, 1.00f, 0.20f); // Left pillar B
+	carBox(T, -2.16f, 2.35f, -0.10f, 0.12f, 1.00f, 0.20f); // Right pillar B
 
-	carBox(P, 0.0f, 0.675f, 3.375f, 4.40f, 0.55f, 0.35f); // parachoques
-	carBox(T, 0.0f, 0.36f, 3.36f, 4.00f, 0.16f, 0.32f); // base da frente
-	carBox(T, 0.0f, 1.15f, 3.51f, 1.90f, 0.32f, 0.04f); // rede
-	// faróis
-	carShape(carMesh.headlight, 1.70f, 1.18f, 3.50f, 0.50f, 0.20f, 0.10f);
-	carShape(carMesh.headlight, -1.70f, 1.18f, 3.50f, 0.50f, 0.20f, 0.10f);
-	carBox(carMesh.plate, 0.0f, 0.62f, 3.565f, 1.30f, 0.28f, 0.03f); // matrícula
-	carBox(carMesh.plateBlue, -0.58f, 0.62f, 3.575f, 0.14f, 0.28f, 0.03f); // azul da matrícula
+	carBox(P, 0.0f, 0.675f, 3.375f, 4.40f, 0.55f, 0.35f); // Front bumper
+	carBox(T, 0.0f, 0.36f, 3.36f, 4.00f, 0.16f, 0.32f); // Front base
+	carBox(T, 0.0f, 1.15f, 3.51f, 1.90f, 0.32f, 0.04f); // Front grille
+	carShape(carMesh.headlight, 1.70f, 1.18f, 3.50f, 0.50f, 0.20f, 0.10f); // Left headlight
+	carShape(carMesh.headlight, -1.70f, 1.18f, 3.50f, 0.50f, 0.20f, 0.10f); // Right headlight
+	carBox(carMesh.plate, 0.0f, 0.62f, 3.565f, 1.30f, 0.28f, 0.03f); // Front plate
+	carBox(carMesh.plateBlue, -0.58f, 0.62f, 3.575f, 0.14f, 0.28f, 0.03f); // Front plate blue detail
 
-	carBox(P, 0.0f, 0.675f, -3.375f, 4.40f, 0.55f, 0.35f); // parachoques 
-	carBox(T, 0.0f, 0.36f, -3.36f, 4.00f, 0.16f, 0.32f);
-	carBox(carMesh.taillight, 1.70f, 1.20f, -3.51f, 0.80f, 0.26f, 0.04f); // luz de trás esquerda
-	carBox(carMesh.taillight, -1.70f, 1.20f, -3.51f, 0.80f, 0.26f, 0.04f); // luz da trás direita
-	carBox(carMesh.plate, 0.0f, 0.62f, -3.565f, 1.30f, 0.28f, 0.03f); // matrícula
-	carBox(carMesh.plateBlue, 0.58f, 0.62f, -3.575f, 0.14f, 0.28f, 0.03f); // azul da matrícula
-	carShape(carMesh.chromeCyl, -1.20f, 0.22f, -3.50f, 0.10f, 0.35f, 0.10f, 90.0f); // tubo
+	carBox(P, 0.0f, 0.675f, -3.375f, 4.40f, 0.55f, 0.35f); // Rear bumper
+	carBox(T, 0.0f, 0.36f, -3.36f, 4.00f, 0.16f, 0.32f); // Rear base
+	carBox(carMesh.taillight, 1.70f, 1.20f, -3.51f, 0.80f, 0.26f, 0.04f); // Left taillight
+	carBox(carMesh.taillight, -1.70f, 1.20f, -3.51f, 0.80f, 0.26f, 0.04f); // Right taillight
+	carBox(carMesh.plate, 0.0f, 0.62f, -3.565f, 1.30f, 0.28f, 0.03f); // Rear plate
+	carBox(carMesh.plateBlue, 0.58f, 0.62f, -3.575f, 0.14f, 0.28f, 0.03f); // Rear plate blue detail
+	carShape(carMesh.chromeCyl, -1.20f, 0.22f, -3.50f, 0.10f, 0.35f, 0.10f, 90.0f); // Exhaust pipe
 
-	// de lado
+	// Sides
 	const float yWin = 0.5f * (CAR_BELT + CAR_ROOF), hWin = CAR_ROOF - CAR_BELT;
 	for (int s = -1; s <= 1; s += 2) {
-		carBox(carMesh.chrome, s * 2.27f, 1.62f, 0.25f, 0.05f, 0.08f, 0.30f); // pega da porta da frente
-		carBox(carMesh.chrome, s * 2.27f, 1.62f, -0.85f, 0.05f, 0.08f, 0.30f); // pega da porta da trás
-		carBox(T, s * 2.255f, 1.10f, -0.10f, 0.02f, 1.50f, 0.03f); // espaço entre as portas
-		carBox(T, s * 2.30f, 1.97f, 1.25f, 0.20f, 0.06f, 0.10f); // junção do retrovisor
-		carBox(P, s * 2.45f, 2.02f, 1.22f, 0.36f, 0.26f, 0.20f); // retrovisor
-		carBox(T, s * CAR_GLASS_X, yWin, CAR_WS_TOP, 0.06f, hWin, 0.05f); // barra da janela da frente
-		carBox(T, s * CAR_GLASS_X, yWin, CAR_RW_TOP, 0.06f, hWin, 0.05f); // barra da janela de trás
+		carBox(carMesh.chrome, s * 2.27f, 1.62f, 0.25f, 0.05f, 0.08f, 0.30f); // Front door handle
+		carBox(carMesh.chrome, s * 2.27f, 1.62f, -0.85f, 0.05f, 0.08f, 0.30f); // Back door handle
+		carBox(T, s * 2.255f, 1.10f, -0.10f, 0.02f, 1.50f, 0.03f); // Space between doors
+		carBox(T, s * 2.30f, 1.97f, 1.25f, 0.20f, 0.06f, 0.10f); // Rearview mirror support
+		carBox(P, s * 2.45f, 2.02f, 1.22f, 0.36f, 0.26f, 0.20f); // Rearview mirror
+		carBox(T, s * CAR_GLASS_X, yWin, CAR_WS_TOP, 0.06f, hWin, 0.05f); // Front window bar
+		carBox(T, s * CAR_GLASS_X, yWin, CAR_RW_TOP, 0.06f, hWin, 0.05f); // Back window bar
 	}
 }
 
-// Interior (visível pelos vidros)
+// Car interior
 static void drawCarInterior(const Car& car) {
 	const int I = carMesh.interior, S = carMesh.seat, T = carMesh.trim;
 
-	carBox(I, 0.0f, 1.675f, 1.15f, 4.18f, 0.45f, 0.40f); // mesa
-	carBox(I, 2.06f, 1.35f, 0.0f, 0.06f, 0.90f, 2.80f); // porta esquerda
-	carBox(I, -2.06f, 1.35f, 0.0f, 0.06f, 0.90f, 2.80f); // porta direita
-	carBox(T, 0.0f, 0.85f, 0.45f, 0.50f, 0.60f, 1.00f); // mesa vertical
-	carShape(carMesh.chromeCyl, 0.0f, 1.25f, 0.60f, 0.06f, 0.20f, 0.06f); // mudanças
-	carBox(T, 0.0f, 2.68f, 0.50f, 0.50f, 0.14f, 0.06f); // espelho interior
-	carBox(T, 0.0f, 2.80f, 0.50f, 0.05f, 0.12f, 0.05f); // junção do espelho
+	carBox(I, 0.0f, 1.675f, 1.15f, 4.18f, 0.45f, 0.40f); // Dashboard
+	carBox(I, 2.06f, 1.35f, 0.0f, 0.06f, 0.90f, 2.80f); // Left door
+	carBox(I, -2.06f, 1.35f, 0.0f, 0.06f, 0.90f, 2.80f); // Right door
+	carBox(T, 0.0f, 0.85f, 0.45f, 0.50f, 0.60f, 1.00f); // Vertical dashboard
+	carShape(carMesh.chromeCyl, 0.0f, 1.25f, 0.60f, 0.06f, 0.20f, 0.06f); // Gear lever
+	carBox(T, 0.0f, 2.68f, 0.50f, 0.50f, 0.14f, 0.06f); // Interior mirror
+	carBox(T, 0.0f, 2.80f, 0.50f, 0.05f, 0.12f, 0.05f); // Mirror support
 
-	// Bancos da frente
+	// Front seats
 	for (int s = -1; s <= 1; s += 2) {
 		float x = s * 0.95f;
-		carBox(S, x, 0.72f, 0.25f, 1.20f, 0.34f, 0.95f); // assento
-		carBox(S, x, 1.35f, -0.30f, 1.20f, 1.05f, 0.22f, -12.0f); // encosto
-		carBox(S, x, 2.05f, -0.45f, 0.60f, 0.30f, 0.18f, -12.0f); // apoio da cabeça
+		carBox(S, x, 0.72f, 0.25f, 1.20f, 0.34f, 0.95f); // Seat cushion
+		carBox(S, x, 1.35f, -0.30f, 1.20f, 1.05f, 0.22f, -12.0f); // Seat backrest
+		carBox(S, x, 2.05f, -0.45f, 0.60f, 0.30f, 0.18f, -12.0f); // Seat headrest
 	}
 
-	// Banco de trás
-	carBox(S, 0.0f, 0.72f, -0.80f, 3.90f, 0.34f, 0.55f); // assento
-	carBox(S, 0.0f, 1.30f, -1.20f, 3.90f, 1.00f, 0.20f, -12.0f); // encosto
+	// Back seat
+	carBox(S, 0.0f, 0.72f, -0.80f, 3.90f, 0.34f, 0.55f); // Seat cushion
+	carBox(S, 0.0f, 1.30f, -1.20f, 3.90f, 1.00f, 0.20f, -12.0f); // Seat backrest
 
-	// Volante (rodar)
+	// Steering wheel
 	mu.pushMatrix(gmu::MODEL);
 	mu.translate(gmu::MODEL, 0.95f, 1.80f, 0.80f);
 	mu.rotate(gmu::MODEL, -70.0f, 1.0f, 0.0f, 0.0f);
-	mu.rotate(gmu::MODEL, car.steerVisual * 3.0f, 0.0f, 1.0f, 0.0f); // rodar o volante
+	mu.rotate(gmu::MODEL, car.steerVisual * 3.0f, 0.0f, 1.0f, 0.0f); // Rotate the steering wheel
 	carShape(carMesh.steering, 0.0f, 0.0f, 0.0f, 0.38f, 0.38f, 0.38f);
 	carBox(T, 0.0f, 0.0f, 0.0f, 0.68f, 0.04f, 0.07f);
 	carBox(T, 0.0f, 0.0f, -0.17f, 0.07f, 0.04f, 0.34f);
@@ -562,14 +568,14 @@ static void drawCarInterior(const Car& car) {
 	mu.popMatrix(gmu::MODEL);
 }
 
-// Uma roda: pneu + jante + cubo + 5 raios (para se ver a rodar)
+// Wheel: tire + rim + hub + 5 spokes (to see it spin)
 static void drawCarWheel(const Car& car, float x, float z, bool front) {
 	mu.pushMatrix(gmu::MODEL);
-	mu.translate(gmu::MODEL, x, CAR_WHEEL_R - 0.2f, z); // o pneu toca na estrada (y = -0.2)
+	mu.translate(gmu::MODEL, x, CAR_WHEEL_R - 0.2f, z); // Tire touches the ground (y = -0.2)
 	if (front) {
-		mu.rotate(gmu::MODEL, car.steerVisual, 0.0f, 1.0f, 0.0f); // rodas da frente viram
+		mu.rotate(gmu::MODEL, car.steerVisual, 0.0f, 1.0f, 0.0f); // Front wheels turn with the steering angle
 	}
-	mu.rotate(gmu::MODEL, car.wheelSpin, 1.0f, 0.0f, 0.0f); // roda em si
+	mu.rotate(gmu::MODEL, car.wheelSpin, 1.0f, 0.0f, 0.0f); // Rotate the wheel
 
 	carShape(carMesh.rubber, 0.0f, 0.0f, 0.0f, CAR_WHEEL_R, 0.35f / 0.275f, CAR_WHEEL_R, 0.0f, 0.0f, 90.0f); // pneu = toro escalado
 	carShape(carMesh.trimCyl, 0.0f, 0.0f, 0.0f, 0.52f, 0.72f, 0.52f, 0.0f, 0.0f, 90.0f); // jante
@@ -578,8 +584,8 @@ static void drawCarWheel(const Car& car, float x, float z, bool front) {
 	for (int k = 0; k < 5; k++) {
 		mu.pushMatrix(gmu::MODEL);
 		mu.rotate(gmu::MODEL, k * 72.0f, 1.0f, 0.0f, 0.0f);
-		carBox(carMesh.chrome, 0.365f, 0.30f, 0.0f, 0.02f, 0.36f, 0.08f); // raio de fora
-		carBox(carMesh.chrome, -0.365f, 0.30f, 0.0f, 0.02f, 0.36f, 0.08f); // raio de dentro
+		carBox(carMesh.chrome, 0.365f, 0.30f, 0.0f, 0.02f, 0.36f, 0.08f); // Outside radius of the spoke
+		carBox(carMesh.chrome, -0.365f, 0.30f, 0.0f, 0.02f, 0.36f, 0.08f); // Inside radius of the spoke
 		mu.popMatrix(gmu::MODEL);
 	}
 
@@ -587,21 +593,10 @@ static void drawCarWheel(const Car& car, float x, float z, bool front) {
 
 }
 
-// Uma peça transparente
-struct GlassPiece {
-	int mesh;
-	bool box; 
-	float x, y, z;
-	float sx, sy, sz;
-	float rotX, rotZ;
-	float cx, cy, cz;
-	float depth;
-};
-
-// Vidros e espelhos (o alpha do material, aplicado pelo blending e não pelo shader)
+// Glass window and mirror (the alpha of the material is applied by blending, not by the shader)
 static void drawCarGlass() {
 	const int G = carMesh.glass, GT = carMesh.glassTri, M = carMesh.mirror;
-	const float h = CAR_ROOF - CAR_BELT; // altura das janelas
+	const float h = CAR_ROOF - CAR_BELT; // Window height
 	const float yMid = 0.5f * (CAR_BELT + CAR_ROOF);
 	const float aF = (CAR_WS_BASE - CAR_WS_TOP) / 1.5f;
 	const float aR = (CAR_RW_TOP - CAR_RW_BASE) / 1.5f;
@@ -610,37 +605,37 @@ static void drawCarGlass() {
 	GlassPiece list[12];
 	int n = 0;
 
-	// Parabrisas e janela atrás
+	// Windshield and rear window
 	slopeParams(CAR_BELT, CAR_WS_BASE, CAR_ROOF, CAR_WS_TOP, yc, zc, len, ang);
 	list[n++] = { G, true, 0.0f, yc, zc, 4.20f, len, 0.04f, ang, 0.0f, 0.0f, yc, zc, 0.0f };
 	slopeParams(CAR_BELT, CAR_RW_BASE, CAR_ROOF, CAR_RW_TOP, yc, zc, len, ang);
 	list[n++] = { G, true, 0.0f, yc, zc, 4.20f, len, 0.04f, ang, 0.0f, 0.0f, yc, zc, 0.0f };
 
-	// Janelas de lado (retângulo + triângulo) e espelhos dos retrovisores
+	// Side windows and mirrors
 	for (int s = -1; s <= 1; s += 2) {
 		float x = s * CAR_GLASS_X;
-		list[n++] = { G, true, x, yMid, 0.225f, 0.03f, h, 0.55f, 0.0f, 0.0f, x, yMid, 0.225f, 0.0f }; // janela da frente
-		list[n++] = { G, true, x, yMid, -0.40f, 0.03f, h, 0.50f, 0.0f, 0.0f, x, yMid, -0.40f, 0.0f }; // janela de trás
+		list[n++] = { G, true, x, yMid, 0.225f, 0.03f, h, 0.55f, 0.0f, 0.0f, x, yMid, 0.225f, 0.0f }; // Front window
+		list[n++] = { G, true, x, yMid, -0.40f, 0.03f, h, 0.50f, 0.0f, 0.0f, x, yMid, -0.40f, 0.0f }; // Back window
 		list[n++] = { GT, false, x, CAR_BELT, CAR_WS_TOP + 0.5f * aF, aF, 0.03f, h / 0.866f, 90.0f, 90.0f,
-			x, CAR_BELT + h / 3.0f, (2.0f * CAR_WS_TOP + CAR_WS_BASE) / 3.0f, 0.0f }; // canto da frente
+			x, CAR_BELT + h / 3.0f, (2.0f * CAR_WS_TOP + CAR_WS_BASE) / 3.0f, 0.0f }; // Front corner
 		list[n++] = { GT, false, x, CAR_BELT, CAR_RW_TOP - 0.5f * aR, aR, 0.03f, h / 0.866f, -90.0f, 90.0f,
-			x, CAR_BELT + h / 3.0f, (2.0f * CAR_RW_TOP + CAR_RW_BASE) / 3.0f, 0.0f }; // canto de trás
+			x, CAR_BELT + h / 3.0f, (2.0f * CAR_RW_TOP + CAR_RW_BASE) / 3.0f, 0.0f }; // Back corner
 		list[n++] = { M, true, s * 2.45f, 2.02f, 1.113f, 0.30f, 0.20f, 0.02f, 0.0f, 0.0f,
-			s * 2.45f, 2.02f, 1.113f, 0.0f };  // espelho retrovisor
+			s * 2.45f, 2.02f, 1.113f, 0.0f }; // Side mirror
 	}
 
-	// Distância de cada peça à câmara: -z em coordenadas de olho (VIEW * MODEL do carro)
+	// Distance from each piece to the camera: -z in eye coordinates (VIEW * MODEL of the car)
 	mu.computeDerivedMatrix(gmu::VIEW_MODEL);
 	float* vm = mu.get(gmu::VIEW_MODEL);
 	for (int i = 0; i < n; i++)
 		list[i].depth = -(vm[2] * list[i].cx + vm[6] * list[i].cy + vm[10] * list[i].cz + vm[14]);
 
-	// De trás para a frente: a peça mais longe é desenhada primeiro
-	std::sort(list, list + n, [](const GlassPiece& a, const GlassPiece& b) { return a.depth > b.depth; });
+	// Sort the pieces from back to front (descending depth)
+	sort(list, list + n, [](const GlassPiece& a, const GlassPiece& b) { return a.depth > b.depth; });
 
 	for (int i = 0; i < n; i++) {
 		const GlassPiece& p = list[i];
-		glBlendColor(0.0f, 0.0f, 0.0f, renderer.myMeshes[p.mesh].mat.diffuse[3]); // opacidade da peça
+		glBlendColor(0.0f, 0.0f, 0.0f, renderer.myMeshes[p.mesh].mat.diffuse[3]); // Opacity
 		if (p.box)
 			carBox(p.mesh, p.x, p.y, p.z, p.sx, p.sy, p.sz, p.rotX);
 		else
@@ -648,22 +643,22 @@ static void drawCarGlass() {
 	}
 }
 
-// Texto da matrícula (TrueType)
+// Plate text (Truetype)
 static void drawPlateText(float cx, float cy, float cz, bool back) {
 	if (!fontLoaded) return;
 
 	const std::string plateText = "AVTM-G5";
-	const float targetWidth = 1.00f; // largura do texto na matrícula
-	float widthPx = renderer.textWidth(plateText); // largura da fonte
-	float s = targetWidth / widthPx; // píxeis da fonte: unidades do carro
-	float capPx = 0.64f * 128.0f; // altura das maiúsculas (Arial, atlas a 128 px)
+	const float targetWidth = 1.00f; // Width of the text on the plate
+	float widthPx = renderer.textWidth(plateText); // Font width in pixels
+	float s = targetWidth / widthPx; // Pixels of the font
+	float capPx = 0.64f * 128.0f; // Uppercase height (Arial, atlas a 128 px)
 
 	mu.pushMatrix(gmu::MODEL);
 	mu.translate(gmu::MODEL, cx, cy, cz);
 	if (back)
 		mu.rotate(gmu::MODEL, 180.0f, 0.0f, 1.0f, 0.0f);
 	mu.scale(gmu::MODEL, s, s, s);
-	mu.translate(gmu::MODEL, -0.5f * widthPx, -0.5f * capPx, 0.0f); // centrar
+	mu.translate(gmu::MODEL, -0.5f * widthPx, -0.5f * capPx, 0.0f); // Centers
 	mu.computeDerivedMatrix(gmu::PROJ_VIEW_MODEL);
 
 	TextCommand t;
@@ -676,7 +671,6 @@ static void drawPlateText(float cx, float cy, float cz, bool back) {
 	renderer.renderText(t);
 
 	mu.popMatrix(gmu::MODEL);
-
 }
 
 void drawCar(const Car& car) {
@@ -686,34 +680,37 @@ void drawCar(const Car& car) {
 	mu.rotate(gmu::MODEL, car.fallPitch, 1.0f, 0.0f, 0.0f); // cair
 	mu.rotate(gmu::MODEL, car.fallRoll, 0.0f, 0.0f, 1.0f);
 
-	// Partes opacas
+	// Opaque parts
 	drawCarBody();
 	drawCarInterior(car);
-	drawCarWheel(car, 1.92f, 2.35f, true); // frente esquerda
-	drawCarWheel(car, -1.92f, 2.35f, true); // frente direita
-	drawCarWheel(car, 1.92f, -2.35f, false); // trás esquerda
-	drawCarWheel(car, -1.92f, -2.35f, false); // trás direita
+	drawCarWheel(car, 1.92f, 2.35f, true); // Left front
+	drawCarWheel(car, -1.92f, 2.35f, true); // Right front
+	drawCarWheel(car, 1.92f, -2.35f, false); // Left back
+	drawCarWheel(car, -1.92f, -2.35f, false); // Right back
 
-	// Partes Transparentes
+	// Transparent parts
 	glEnable(GL_BLEND);
 	glDepthMask(GL_FALSE);
 
-	// vidros: opacidade constante por peça (glBlendColor), igual para todas as janelas
+	// Windows: constant alpha per piece (glBlendColor), same for all windows
 	glBlendFunc(GL_CONSTANT_ALPHA, GL_ONE_MINUS_CONSTANT_ALPHA);
 	drawCarGlass();
 
-	// texto: usa o alpha de cada letra (fundo transparente da fonte)
+	// Text: uses the alpha of each letter (transparent background of the font)
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	drawPlateText(0.07f, 0.62f, 3.60f, false); // matrícula da frente
-	drawPlateText(-0.07f, 0.62f, -3.60f, true); // matrícula de trás
-	renderer.activateRenderMeshesShaderProg(); // o renderText troca de shader
+	drawPlateText(0.07f, 0.62f, 3.60f, false); // Front plate
+	drawPlateText(-0.07f, 0.62f, -3.60f, true); // Back plate
+	renderer.activateRenderMeshesShaderProg(); // Render
 
 	glDepthMask(GL_TRUE);
 	glDisable(GL_BLEND);
 
 	mu.popMatrix(gmu::MODEL);
-
 }
+
+// ============================================================================
+// ENVIRONMENT OBJECTS & GAMEPLAY ENTITIES
+// ============================================================================
 
 void drawButter(const Butter& butter)
 {
@@ -765,17 +762,17 @@ void drawOrange(const Orange& orange)
 
 	mu.translate(gmu::MODEL, orange.x, 1.0f, orange.z);
 
-	// Movimento em X -> rotação em Z
+	// Movement in X -> rotation in Z
 	if (orange.dirX != 0.0f)
 		mu.rotate(gmu::MODEL, -orange.angle * orange.dirX,
 			0.0f, 0.0f, 1.0f);
 
-	// Movimento em Z -> rotação em X
+	// Movement in Z -> rotation in X
 	if (orange.dirZ != 0.0f)
 		mu.rotate(gmu::MODEL, orange.angle * orange.dirZ,
 			1.0f, 0.0f, 0.0f);
 
-	// Laranja
+	// Orange
 	drawCenteredObject(
 		ORANGE_MESH,
 		0.0f, 0.0f, 0.0f,
@@ -784,7 +781,7 @@ void drawOrange(const Orange& orange)
 		0
 	);
 
-	// Bola preta
+	// Black mesh
 	drawCenteredObject(
 		ORANGE_BLACK_MESH,
 		0.0f, 1.45f, 0.0f,
@@ -796,44 +793,22 @@ void drawOrange(const Orange& orange)
 	mu.popMatrix(gmu::MODEL);
 }
 
-void initCheerios() {
-	cheerioInstances.clear();
-	float spacing = 6.0f;
-
-	for (int i = 0; i < NUM_CHEERIOS_LINES; i++) {
-		float x1 = cheeriosLine[i].x1;
-		float z1 = cheeriosLine[i].z1;
-		float x2 = cheeriosLine[i].x2;
-		float z2 = cheeriosLine[i].z2;
-
-		float dx = x2 - x1;
-		float dz = z2 - z1;
-		float dist = sqrtf(dx * dx + dz * dz);  // Calculate the distance between the two points
-		int count = (int)(dist / spacing); // Calculate the number of cheerios to draw based on the distance and spacing
-
-		for (int j = 0; j <= count; ++j) {
-			float t = (count == 0) ? 0.0f : (float)j / (float)count; // Calculate the interpolation factor (how far along the line we are | t = 0 to 1)
-			cheerioInstances.push_back({ x1 + t * dx, z1 + t * dz });
-		}
-	}
-}
-
 bool orangePathIsFree(const Orange& orange)
 {
-	// Margem de segurança:
+	// Safety margin
 	const float margin = 4.5f;
 
-	// Verificar manteigas
+	// Check butters
 	for (int i = 0; i < NUM_BUTTERS; i++)
 	{
-		// Laranja desloca-se horizontalmente (em X)
+		// Move horizontally (in X)
 		if (orange.dirX != 0.0f)
 		{
 			if (fabs(orange.z - butters[i].z) < margin)
 				return false;
 		}
 
-		// Laranja desloca-se verticalmente (em Z)
+		// Move vertically (in Z)
 		else if (orange.dirZ != 0.0f)
 		{
 			if (fabs(orange.x - butters[i].x) < margin)
@@ -841,7 +816,7 @@ bool orangePathIsFree(const Orange& orange)
 		}
 	}
 
-	// Posições das velas
+	// Candles positions (x, z)
 	float candles[6][2] = {
 		{ 51.25f,  32.25f },
 		{ -5.5f,   48.5f },
@@ -851,7 +826,7 @@ bool orangePathIsFree(const Orange& orange)
 		{ 55.5f,  -41.0f }
 	};
 
-	// Verificar velas
+	// Check candles
 	for (int i = 0; i < 6; i++)
 	{
 		if (orange.dirX != 0.0f)
@@ -878,7 +853,7 @@ void resetOrange(Orange& orange)
 
 		if (side == 0)
 		{
-			// Esquerda -> direita
+			// Left -> right
 			orange.x = -87.0f;
 			orange.z = -80.0f + (rand() % 161);
 
@@ -887,7 +862,7 @@ void resetOrange(Orange& orange)
 		}
 		else if (side == 1)
 		{
-			// Direita -> esquerda
+			// Right -> left
 			orange.x = 87.0f;
 			orange.z = -80.0f + (rand() % 161);
 
@@ -896,7 +871,7 @@ void resetOrange(Orange& orange)
 		}
 		else if (side == 2)
 		{
-			// Cima -> baixo
+			// Top -> bottom
 			orange.x = -80.0f + (rand() % 161);
 			orange.z = 87.0f;
 
@@ -905,7 +880,7 @@ void resetOrange(Orange& orange)
 		}
 		else
 		{
-			// Baixo -> cima
+			// Bottom -> top
 			orange.x = -80.0f + (rand() % 161);
 			orange.z = -87.0f;
 
@@ -922,20 +897,20 @@ void updateOranges()
 {
 	for (int i = 0; i < NUM_ORANGES; i++)
 	{
-		// Aumentar a velocidade
+		// Speed up the orange over time
 		oranges[i].speed += oranges[i].acceleration;
 
-		// Movimento em linha reta
+		// Update the position of the orange based on its direction and speed
 		oranges[i].x += oranges[i].dirX * oranges[i].speed;
 		oranges[i].z += oranges[i].dirZ * oranges[i].speed;
 
-		// Rotação sobre si própria
+		// Rotate the orange based on its speed (for visual effect)
 		oranges[i].angle += oranges[i].speed * 10.0f;
 
 		if (oranges[i].angle >= 360.0f)
 			oranges[i].angle -= 360.0f;
 
-		// Se sair da mesa, reaparece num sitio aleatório
+		// If the orange goes out of bounds, reset its position
 		if (oranges[i].x > 87.0f || oranges[i].x < -87.0f ||
 			oranges[i].z > 87.0f || oranges[i].z < -87.0f)
 		{
@@ -943,6 +918,32 @@ void updateOranges()
 		}
 	}
 }
+
+void initCheerios() {
+	cheerioInstances.clear();
+	float spacing = 6.0f;
+
+	for (int i = 0; i < NUM_CHEERIOS_LINES; i++) {
+		float x1 = cheeriosLine[i].x1;
+		float z1 = cheeriosLine[i].z1;
+		float x2 = cheeriosLine[i].x2;
+		float z2 = cheeriosLine[i].z2;
+
+		float dx = x2 - x1;
+		float dz = z2 - z1;
+		float dist = sqrtf(dx * dx + dz * dz);  // Calculate the distance between the two points
+		int count = (int)(dist / spacing); // Calculate the number of cheerios to draw based on the distance and spacing
+
+		for (int j = 0; j <= count; ++j) {
+			float t = (count == 0) ? 0.0f : (float)j / (float)count; // Calculate the interpolation factor (how far along the line we are | t = 0 to 1)
+			cheerioInstances.push_back({ x1 + t * dx, z1 + t * dz });
+		}
+	}
+}
+
+// ============================================================================
+// GAME LOGIC & CAR DYNAMICS
+// ============================================================================
 
 void startCarFall() {
 	if (carFalling) {
@@ -1010,18 +1011,18 @@ void restartGame()
 void updateCarFall(float deltaTime) {
 	fallTimer += deltaTime;
 
-	// Gravidade
+	// Gravity
 	fallVelocityY -= FALL_GRAVITY * deltaTime;
 	carBarbie.y += fallVelocityY * deltaTime;
 
-	// cair na direção em que saiu da mesa
+	// Preserve momentum trajectory
 	carBarbie.x += fallDirX * fallHorizontalSpeed * deltaTime;
 	carBarbie.z += fallDirZ * fallHorizontalSpeed * deltaTime;
 
-	// vai perdendo velocidade horizontal
+	// Lose horizontal speed over time (air resistance)
 	fallHorizontalSpeed *= (1.0f - 0.8f * deltaTime);
 
-	// Kirby fall (roadr todo)
+	// Kirby fall
 	float speedFactor = std::min(fabs(fallHorizontalSpeed) / carBarbie.maxSpeed, 1.0f);
 	carBarbie.fallPitch += (220.0f + 180.0f * speedFactor) * deltaTime;
 	carBarbie.fallRoll += (100.0f + 120.0f * speedFactor) * deltaTime;
@@ -1034,7 +1035,7 @@ void updateCarFall(float deltaTime) {
 		carBarbie.fallRoll -= 360.0f;
 	}
 
-	// Passado um bocado, volta à partida
+	// After a certain time, respawn the car
 	if (fallTimer >= FALL_RESPAWN_TIME) {
 		respawnCar();
 	}
@@ -1046,8 +1047,8 @@ void updateCarMoviment(float tableWidth, float tableDepth, float deltaTime) {
 	const float brakePower = 70.0f;
 	const float turnSpeed = 160.0f;
 
-	// aceleração e travagem
-	// W e S ao mesmo tempo: travar
+	// Acceleration and braking controls
+	// W and S at the same time: brake
 	if (keyFrente && keyTras) {
 		if (carBarbie.speed > 0.0f) {
 			carBarbie.speed -= brakePower * deltaTime;
@@ -1069,7 +1070,7 @@ void updateCarMoviment(float tableWidth, float tableDepth, float deltaTime) {
 	}
 
 	else if (keyFrente) { // W
-		// se está a andar para trás: é travão
+		// If the car is moving backward: brake
 		if (carBarbie.speed < 0.0f) {
 			carBarbie.speed += brakePower * deltaTime;
 			if (carBarbie.speed > 0.0f) {
@@ -1077,7 +1078,7 @@ void updateCarMoviment(float tableWidth, float tableDepth, float deltaTime) {
 			}	
 		}
 
-		// se está parado ou a andar para a frente: acelera
+		// If the car is stopped or moving forward: accelerate
 		else {
 			carBarbie.speed += carBarbie.acceleration * deltaTime;
 		}
@@ -1086,7 +1087,7 @@ void updateCarMoviment(float tableWidth, float tableDepth, float deltaTime) {
 
 	else if (keyTras) { // S
 
-		// se está a andar para a frente: é travão
+		// If the car is moving forward: brake
 		if (carBarbie.speed > 0.0f) {
 			carBarbie.speed -= brakePower * deltaTime;
 
@@ -1096,14 +1097,14 @@ void updateCarMoviment(float tableWidth, float tableDepth, float deltaTime) {
 				
 		}
 
-		// se está parado ou a andar para trás: acelera
+		// If the car is stopped or moving backward: accelerate backward
 		else {
 			carBarbie.speed -= carBarbie.acceleration * deltaTime;
 		}
 
 	}
 
-	// Nenhuma tecla
+	// No keys pressed: decelerate to a stop
 	else {
 		if (carBarbie.speed > 0.0f) {
 			carBarbie.speed -= deceleration * deltaTime;
@@ -1125,7 +1126,7 @@ void updateCarMoviment(float tableWidth, float tableDepth, float deltaTime) {
 
 	}
 
-	// velocidade máxima
+	// Maximum speed limit
 	if (carBarbie.speed > carBarbie.maxSpeed) {
 		carBarbie.speed = carBarbie.maxSpeed;
 	}
@@ -1135,34 +1136,34 @@ void updateCarMoviment(float tableWidth, float tableDepth, float deltaTime) {
 	}
 	
 
-	// virar o carro
+	// Turning controls
 	float turnDirection = 0.0f;
 
-	// A: esquerda
+	// A: left
 	if (keyEsq && !keyDir) {
 		turnDirection = 1.0f;
 	}
 		
-	// D: direita
+	// D: right
 	else if (keyDir && !keyEsq) {
 		turnDirection = -1.0f;
 	}
 		
-	// só vira se o carro estiver a andar
+	// Only turn if the car is moving (forward or backward)
 	if (fabs(carBarbie.speed) > 0.01f) {
 		float speedFactor = fabs(carBarbie.speed) / carBarbie.maxSpeed;
 		if (speedFactor > 1.0f) {
 			speedFactor = 1.0f;
 		}
 
-		// Marcha atrás inverte a dir e esq
+		// Backward movement: invert the turning direction
 		float movementDirection = (carBarbie.speed >= 0.0f) ? 1.0f : -1.0f;
 
-		// Quanto mais rápido anda, mais depressa consegue mudar de direção
+		// Change car direction faster when moving faster
 		carBarbie.angle += turnDirection * turnSpeed * speedFactor * deltaTime * movementDirection;
 	}
 
-	// virar máximo
+	// Maximum angle
 	if (carBarbie.angle >= 360.0f){
 		carBarbie.angle -= 360.0f;
 	}
@@ -1171,14 +1172,13 @@ void updateCarMoviment(float tableWidth, float tableDepth, float deltaTime) {
 		carBarbie.angle += 360.0f;
 	}
 
-	// direção
-		// direção do movimento: vetor 3D unitário (velocidade e aceleração são escalares)
+	// Movement direction: 3D unit vector (speed and acceleration are scalars)
 	float angleRad = carBarbie.angle * 3.14159265f / 180.0f;
 	carBarbie.dir[0] = sinf(angleRad);
 	carBarbie.dir[1] = 0.0f;
 	carBarbie.dir[2] = cosf(angleRad);
 
-	//mover
+	// Move
 	carBarbie.x += carBarbie.dir[0] * carBarbie.speed * deltaTime;
 	carBarbie.z += carBarbie.dir[2] * carBarbie.speed * deltaTime;
 	carBarbie.wheelSpin += (carBarbie.speed * deltaTime / CAR_WHEEL_R) * 180.0f / 3.14159265f;
@@ -1186,19 +1186,21 @@ void updateCarMoviment(float tableWidth, float tableDepth, float deltaTime) {
 	float steerTarget = turnDirection * 20.0f;
 	carBarbie.steerVisual += (steerTarget - carBarbie.steerVisual) * std::min(1.0f, 10.0f * deltaTime);
 
-	// saiu da mesa (ver pelo centro do carro)
+	// Check if the car has fallen off the table by comparing its center position with the table boundaries
 	if (fabs(carBarbie.x) > (tableWidth * 0.5f) || fabs(carBarbie.z) > (tableDepth * 0.5f)) {
 		startCarFall();
 	}
 		
 }
 
-/// ::::::::::::::::::::::::::::::::::::::::::::::::COLISION FUNCIONS:::::::::::::::::::::::::::::::::::::::::::::::::://///
+// ============================================================================
+// COLLISION DETECTION SYSTEM
+// ============================================================================
 
 // Get the AABB for the car, butter, orange and cheerio
 AABB getCarAABB(const Car& car) {
 	float halfW = car.width * 0.5f - 0.1f;
-	float halfD = car.depth * 0.5f - 0.1f;
+	float halfD = car.width * 0.5f - 0.1f;
 	return { car.x - halfW, car.x + halfW, car.z - halfD, car.z + halfD };
 }
 
@@ -1270,115 +1272,66 @@ void checkCollisions() {
 	}
 }
 
-/// ::::::::::::::::::::::::::::::::::::::::::::::::CALLBACK FUNCIONS:::::::::::::::::::::::::::::::::::::::::::::::::://///
+// ============================================================================
+// CAMERA CONTROLS & HUD RENDERING
+// ============================================================================
 
-void timer(int value)
-{
-	std::ostringstream oss;
-	oss << CAPTION << ": " << FrameCount << " FPS @ (" << WinX << "x" << WinY << ")";
-	std::string s = oss.str();
-	glutSetWindow(WindowHandle);
-	glutSetWindowTitle(s.c_str());
-    FrameCount = 0;
-    glutTimerFunc(1000, timer, 0);
-}
-
-void refresh(int value)
-{
-	//PUT YOUR CODE HERE
-	glutPostRedisplay();
-	glutTimerFunc(1000 / FPS, refresh, 0);
-}
-
-// Callback function for window resizing
-void changeSize(int w, int h) {
-
-	/* (Antigo - lightDemo)
-	float ratio;
-	// Prevent a divide by zero, when window is too short
-	if(h == 0)
-		h = 1;
-	// set the viewport to be the entire window
-	glViewport(0, 0, w, h);
-	// set the projection matrix
-	ratio = (1.0f * w) / h;
-	mu.loadIdentity(gmu::PROJECTION);
-	mu.perspective(53.13f, ratio, 0.1f, 1000.0f);
-	*/
-
-	// Prevent a divide by zero, when window is too short
-	if (h == 0)
-		h = 1;
-
-	WinX = w;
-	WinY = h;
-
-	// set the viewport to be the entire window
-	glViewport(0, 0, w, h);
-	//guarda o aspecto ratio para as cameras
-	aspectRatio = (float)w / (float)h;
-
-}
-
-//Decide qual projecao usar - depende das cameras (adaptavel ao tamanho da mesa)
+// Setup the camera based on the current camera mode and table dimensions
 void setupCamera(float tableWidth, float tableDepth, float tablePosY) {
-	// Reconstroi
 	mu.loadIdentity(gmu::VIEW);
 	mu.loadIdentity(gmu::PROJECTION);
 
-	// margem da camara com mais 10% de espaco do que a mesa ocupa
+	// Camera margin: 10% extra space around the table
 	float margin = 1.10f;
 
-	//tamanho da camara dependendo da mesa
+	// Camera depends on the table dimensions and aspect ratio
 	float halfView = std::max(tableDepth * 0.5f, (tableWidth * 0.5f) / aspectRatio);
 	halfView *= margin;
 
-//Camera 1 - Fixed top camera + orthographic
+	// Camera 1: Top-down orthographic
 	if (CameraMode == 1) {
 		mu.ortho(-halfView * aspectRatio, halfView * aspectRatio, -halfView, halfView, 0.1f, 1000.0f);
 
 		mu.lookAt(
-			0.0f, 200.0f, 0.0f,		//posicao
-			0.0f, tablePosY, 0.0f,	// olha para o centro da mesa
-			0.0f, 0.0f, -1.0f		// cima da mesa (e não em baixo)
+			0.0f, 200.0f,    0.0f,	// Position of the camera (above the table)
+			0.0f, tablePosY, 0.0f,	// Look at the center of the table
+			0.0f, 0.0f,     -1.0f	// Top of the camera is in the negative Z direction
 		);
 	}
 
-//Camera 2 - Fixed top camera + prespective
+	// Camera 2: Fixed top perspective
 	else if (CameraMode == 2) {
 
 
 		mu.perspective(53.13f, aspectRatio, 0.1f, 1000.0f);
 
 		mu.lookAt(
-			0.0f, tablePosY + (1.4f * halfView), (1.8f * halfView),	//posicao
-			0.0f, tablePosY, 0.0f,	//para onde olha
-			0.0f, 0.0f, -1.0f	// cima da imagem
+			0.0f, tablePosY + (1.4f * halfView), (1.8f * halfView),	// Position of the camera (above and in front of the table)
+			0.0f, tablePosY,                     0.0f,				// Look at the center of the table
+			0.0f, 0.0f,                         -1.0f				// Top of the image
 		);
 	}
 
-// Camera 3 - Moving camera + prespective (aceita rato)
+	// Camera 3: Third-person follow perspective (accept mouse movement)
 	else if (CameraMode == 3) {
 		mu.perspective(53.13f, aspectRatio, 0.1f, 1000.0f);
 
-		// A orientação da camara acompanha a orientação do carro
+		// Camera orientation follows the mouse orientation
 		float carAngleRad = carBarbie.angle * 3.14f / 180.0f;
 
 		float offsetX = camX * cos(carAngleRad) + camZ * sin(carAngleRad);
 		float offsetZ = -camX * sin(carAngleRad) + camZ * cos(carAngleRad);
 
-		// Posição final da camara no mundo
+		// Final camera position
 		float cameraX = carBarbie.x + offsetX;
 		float cameraY = carBarbie.y + 1.5f + camY;
 		float cameraZ = carBarbie.z + offsetZ;
 
-		// Camara olha para o carro
+		// Camera looks at the car's position
 		mu.lookAt(cameraX, cameraY, cameraZ,
 			carBarbie.x, carBarbie.y + 1.5f, carBarbie.z,
 			0.0f, 1.0f, 0.0f);
-
 	}
-
 }
 
 void drawHUD()
@@ -1500,7 +1453,10 @@ void drawHUD()
 	renderer.activateRenderMeshesShaderProg();
 }
 
-// Render the scene
+// ============================================================================
+// MAIN SIMULATION LOOP
+// ============================================================================
+
 void renderSim(void) {
 
 	FrameCount++;
@@ -1699,10 +1655,57 @@ void renderSim(void) {
 	glutSwapBuffers();
 }
 
-// ------------------------------------------------------------
-//
-// Events from the Keyboard
-//
+// ============================================================================
+// GLUT CALLBACKS & USER INPUT HANDLERS
+// ============================================================================
+
+void timer(int value)
+{
+	std::ostringstream oss;
+	oss << CAPTION << ": " << FrameCount << " FPS @ (" << WinX << "x" << WinY << ")";
+	std::string s = oss.str();
+	glutSetWindow(WindowHandle);
+	glutSetWindowTitle(s.c_str());
+	FrameCount = 0;
+	glutTimerFunc(1000, timer, 0);
+}
+
+void refresh(int value)
+{
+	//PUT YOUR CODE HERE
+	glutPostRedisplay();
+	glutTimerFunc(1000 / FPS, refresh, 0);
+}
+
+// Callback function for window resizing
+void changeSize(int w, int h) {
+
+	/* (Antigo - lightDemo)
+	float ratio;
+	// Prevent a divide by zero, when window is too short
+	if(h == 0)
+		h = 1;
+	// set the viewport to be the entire window
+	glViewport(0, 0, w, h);
+	// set the projection matrix
+	ratio = (1.0f * w) / h;
+	mu.loadIdentity(gmu::PROJECTION);
+	mu.perspective(53.13f, ratio, 0.1f, 1000.0f);
+	*/
+
+	// Prevent a divide by zero, when window is too short
+	if (h == 0)
+		h = 1;
+
+	WinX = w;
+	WinY = h;
+
+	// set the viewport to be the entire window
+	glViewport(0, 0, w, h);
+	//guarda o aspecto ratio para as cameras
+	aspectRatio = (float)w / (float)h;
+
+}
 
 void processKeys(unsigned char key, int xx, int yy)
 {
@@ -1839,11 +1842,6 @@ void processKeyUp(unsigned char key, int xx, int yy)
 	}
 }
 
-// ------------------------------------------------------------
-//
-// Mouse Events
-//
-
 void processMouseButtons(int button, int state, int xx, int yy)
 {
 	// start tracking the mouse
@@ -1870,8 +1868,6 @@ void processMouseButtons(int button, int state, int xx, int yy)
 		tracking = 0;
 	}
 }
-
-// Track mouse motion while buttons are pressed
 
 void processMouseMotion(int xx, int yy)
 {
@@ -1928,7 +1924,10 @@ void mouseWheel(int wheel, int direction, int x, int y) {
 //	glutPostRedisplay();
 }
 
-//
+// ============================================================================
+// SCENE SETUP & MAIN
+// ============================================================================
+
 // Scene building with basic geometry
 //
 // 0: table (cube)
@@ -2269,11 +2268,6 @@ void buildScene()
 	camZ = r * cos(alpha * 3.14f / 180.0f) * cos(_beta * 3.14f / 180.0f);
 	camY = r * sin(_beta * 3.14f / 180.0f);
 }
-
-// ------------------------------------------------------------
-//
-// Main function
-//
 
 int main(int argc, char **argv) {
 
