@@ -274,20 +274,6 @@ void Renderer::renderMeshFromAssimp(const dataMesh& data) {
     GLint loc;
     unsigned int  diffMapCount = 0;  //read 2 diffuse textures
 
-    printf("\n--- renderMeshFromAssimp ---\n");
-    printf("meshID = %d\n", data.meshID);
-    printf("model = %p\n", (void*)data.model);
-    printf("view = %p\n", (void*)data.view);
-    printf("vm = %p\n", (void*)data.vm);
-    printf("pvm = %p\n", (void*)data.pvm);
-    printf("normal = %p\n", (void*)data.normal);
-
-    printf("model_loc = %d\n", model_loc);
-    printf("view_loc = %d\n", view_loc);
-    printf("vm_loc = %d\n", vm_loc);
-    printf("pvm_loc = %d\n", pvm_loc);
-    printf("normal_loc = %d\n", normal_loc);
-
     glUniform1i(normalMap_loc, false);   //GLSL normalMap variable initialized to 0
     glUniform1i(specularMap_loc, false);
     glUniform1ui(diffMapCount_loc, 0);

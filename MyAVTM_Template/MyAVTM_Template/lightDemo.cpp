@@ -1248,7 +1248,9 @@ void drawSpider(float x, float y, float z, float scale){
 		// Posi��o da aranha
 		mu.translate(gmu::MODEL, x, y, z);
 
-		mu.scale(gmu::MODEL, scale, scale, scale);
+		float finalScale = spiderScaleFactor * scale;
+
+		mu.scale(gmu::MODEL, finalScale, finalScale, finalScale);
 
 		mu.computeDerivedMatrix(gmu::PROJ_VIEW_MODEL);
 		mu.computeNormalMatrix3x3();
