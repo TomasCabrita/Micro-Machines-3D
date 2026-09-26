@@ -930,7 +930,7 @@ void updateOranges()
 	}
 }
 
-void initCheerios() {
+void resetCheerios() {
 	cheerioInstances.clear();
 	float spacing = 6.0f;
 
@@ -1020,7 +1020,7 @@ void restartGame()
 	gameOverTimer = 0.0f;
 
 	resetButters();
-	initCheerios();
+	resetCheerios();
 
 	for (int i = 0; i < NUM_ORANGES; i++)
 	{
@@ -1584,7 +1584,6 @@ void drawReflectableObjects(float cheerioPosY, float candleBasePosY, float candl
 	drawCar(carBarbie);
 }
 
-
 void createTableReflectionMask(float tableWidth, float tableDepth, float tableTopY) {
 
 	glEnable(GL_STENCIL_TEST);
@@ -1627,8 +1626,6 @@ void drawPlanarReflection(float tableTopY, float cheerioPosY, float candleBasePo
 	glDisable(GL_STENCIL_TEST);
 
 }
-
-
 
 // ============================================================================
 // MAIN SIMULATION LOOP
@@ -1673,12 +1670,10 @@ void renderSim(void) {
 			gameOverTimer += deltaTime;
 		} else if (carFalling) {
 			updateCarFall(deltaTime);
-		}
-		else {
+		} else {
 			updateCarMoviment(tableWidth, tableDepth, deltaTime);
 			checkCollisions();
 		}
-
 		updateOranges();
 	}
 
@@ -1687,10 +1682,11 @@ void renderSim(void) {
 	// Activate the shader program for rendering meshes with illumination
 	renderer.activateRenderMeshesShaderProg();
 	// Set the texture units for the shader program
-	renderer.setTexUnit(0, 0); // stone.tga
-	renderer.setTexUnit(1, 1); // checker.png
-	renderer.setTexUnit(2, 2); // lightwood.tga
-	renderer.setTexUnit(3, 3); // road.jpg
+	renderer.setTexUnit(0, 0); // lightwood.tga
+	renderer.setTexUnit(1, 1); // wood_2.jpg
+	renderer.setTexUnit(2, 2); // stone.tga
+	renderer.setTexUnit(3, 3); // checker.png
+	renderer.setTexUnit(4, 4); // road.jpg
 
 	// Reset the model matrix and set up the camera based on the table dimensions
 	mu.loadIdentity(gmu::MODEL);
@@ -1761,7 +1757,7 @@ void renderSim(void) {
 	glBlendFunc(GL_CONSTANT_ALPHA, GL_ONE_MINUS_CONSTANT_ALPHA);
 
 	// Draw the table
-	drawObject(TABLE_MESH, 0.0f,  tablePosY, 0.0f, tableWidth, tableHeight, tableDepth);
+	drawObject(TABLE_MESH, 0.0f,  tablePosY, 0.0f, tableWidth, tableHeight, tableDepth, 0.0f, 3);
 
 	// já não estão ativas
 	glDisable(GL_BLEND);
@@ -2133,12 +2129,12 @@ void mouseWheel(int wheel, int direction, int x, int y) {
 // 10: candle base (cylinder)
 // 11: candle wick (cylinder)
 
-void buildScene()
-{
+void buildScene() {
 	//Texture Object definition
+	renderer.TexObjArray.texture2D_Loader("assets/lightwood.tga");
+	renderer.TexObjArray.texture2D_Loader("assets/wood_2.jpg");
 	renderer.TexObjArray.texture2D_Loader("assets/stone.tga");
 	renderer.TexObjArray.texture2D_Loader("assets/checker.png");
-	renderer.TexObjArray.texture2D_Loader("assets/lightwood.tga");
 	renderer.TexObjArray.texture2D_Loader("assets/road.jpg");
 
 	//Scene geometry with triangle meshes
@@ -2522,7 +2518,7 @@ int main(int argc, char **argv) {
 
 	buildScene();
 	resetButters();
-	initCheerios();
+	resetCheerios();
 
 	if(!renderer.setRenderMeshesShaderProg("shaders/mesh.vert", "shaders/mesh.frag") || 
 		!renderer.setRenderTextShaderProg("shaders/ttf.vert", "shaders/ttf.frag"))

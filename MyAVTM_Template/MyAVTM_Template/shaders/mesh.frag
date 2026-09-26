@@ -21,6 +21,7 @@ uniform sampler2D texmap;
 uniform sampler2D texmap1;
 uniform sampler2D texmap2;
 uniform sampler2D texmap3;
+uniform sampler2D texmap4;
 
 uniform int texMode;
 
@@ -121,23 +122,23 @@ void main() {
 
 	else if (texMode == 1) // Modulate diffuse color with texel color
 	{
-		texel = texture(texmap2, DataIn.tex_coord);  // texel from lighwood.tga
+		texel = texture(texmap, DataIn.tex_coord);  // texel from lighwood.tga
 		colorOut = vec4(max(totalIntensity * mat.diffuse * texel + totalSpecular,0.07 * texel).rgb, 1.0);
 	}
 	else if (texMode == 2) // Diffuse color is replaced by texel color
 	{
-		texel = texture(texmap, DataIn.tex_coord);  // texel from stone.tga
+		texel = texture(texmap2, DataIn.tex_coord);  // texel from stone.tga
 		colorOut = vec4(max(totalIntensity * texel + totalSpecular, 0.07 * texel).rgb, 1.0);
 	}
 	else if (texMode == 4) // Diffuse color is replaced by texel color
 	{
-		texel = texture(texmap3, DataIn.tex_coord);  // texel from checker.tga
+		texel = texture(texmap4, DataIn.tex_coord);  // texel from road.jpg
 		colorOut = vec4(max(totalIntensity * texel + totalSpecular, 0.07 * texel).rgb, 1.0);
 	}
 	else // Multitexturing
 	{
-		texel = texture(texmap2, DataIn.tex_coord);  // texel from lighwood.tga
-		texel1 = texture(texmap1, DataIn.tex_coord);  // texel from checker.tga
+		texel = texture(texmap, DataIn.tex_coord);  // texel from lighwood.tga
+		texel1 = texture(texmap1, DataIn.tex_coord);  // texel from wood_2.jpg
 		colorOut = vec4(max(totalIntensity * texel * texel1 + totalSpecular, 0.07 * texel * texel1).rgb, 1.0);
 	}
 }

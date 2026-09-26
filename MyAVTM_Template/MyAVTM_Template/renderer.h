@@ -43,7 +43,7 @@ public:
   //Setup render meshes GLSL program
   bool setRenderMeshesShaderProg(const std::string &vertShaderPath, const std::string &fragShaderPath);
 
-    // setup text font rasterizer GLSL program
+  // setup text font rasterizer GLSL program
   bool setRenderTextShaderProg(const std::string &vertShaderPath, const std::string &fragShaderPath);
 
   void activateRenderMeshesShaderProg();
