@@ -9,7 +9,7 @@
 // The code comes with no warranties, use it at your own risk.
 // You may use it, or parts of it, wherever you want.
 // 
-// Author: João Madeiras Pereira
+// Author: Joï¿½o Madeiras Pereira
 //
 
 #include <math.h>
@@ -34,6 +34,11 @@
 #include "model.h"
 #include "texture.h"
 
+#include <assimp/Importer.hpp>
+#include <assimp/scene.h>
+
+#include "meshFromAssimp.h"
+
 using namespace std;
 
 // ============================================================================
@@ -42,6 +47,14 @@ using namespace std;
 
 #define CAPTION "AVTM 2026 Micro Machines 3D"
 #define FPS 60
+
+char model_dir[200];
+Assimp::Importer importerSpider;
+const aiScene* sceneSpider = nullptr;
+
+float spiderScaleFactor = 1.0f;
+
+Renderer rendererSpider;
 
 int WindowHandle = 0;
 int WinX = 640, WinY = 480;
@@ -731,7 +744,7 @@ void drawButter(const Butter& butter)
 	// Yellow
 	drawObject(
 		BUTTER_YELLOW_MESH,
-		-2.1f, 0.5f, 0.0f,
+		-1.6f, 0.5f, 0.0f,
 		0.8f, height, depth,
 		0.0f, 0
 	);
@@ -739,7 +752,7 @@ void drawButter(const Butter& butter)
 	// Small beige stripe
 	drawObject(
 		BUTTER_BEIGE_MESH,
-		-1.45f, 0.5f, 0.0f,
+		-0.95f, 0.5f, 0.0f,
 		0.5f, height, depth,
 		0.0f, 0
 	);
@@ -747,7 +760,7 @@ void drawButter(const Butter& butter)
 	// Blue stripe
 	drawObject(
 		BUTTER_BLUE_MESH,
-		-0.75f, 0.5f, 0.0f,
+		-0.25f, 0.5f, 0.0f,
 		0.9f, height, depth,
 		0.0f, 0
 	);
@@ -756,7 +769,7 @@ void drawButter(const Butter& butter)
 	drawObject(
 		BUTTER_BEIGE_MESH,
 		0.95f, 0.5f, 0.0f,
-		2.5f, height, depth,
+		1.5f, height, depth,
 		0.0f, 0
 	);
 
@@ -977,15 +990,15 @@ void startCarFall() {
 		gameOverTimer = 0.0f;
 	}
 
-	// Guardar direção que o carro tinha quando saiu da mesa
+	// Guardar direï¿½ï¿½o que o carro tinha quando saiu da mesa
 	float angleRad = carBarbie.angle * 3.14159265f / 180.0f;
 	fallDirX = sin(angleRad);
 	fallDirZ = cos(angleRad);
 
-	// Mantém a velocidade que tinha ao sair
+	// Mantï¿½m a velocidade que tinha ao sair
 	fallHorizontalSpeed = carBarbie.speed;
 
-	// Já não dá para andar com o carro
+	// Jï¿½ nï¿½o dï¿½ para andar com o carro
 	keyFrente = false;
 	keyTras = false;
 	keyDir = false;
@@ -1218,6 +1231,45 @@ void updateCarMoviment(float tableWidth, float tableDepth, float deltaTime) {
 		
 }
 
+void drawSpider(float x, float y, float z, float scale){
+	rendererSpider.activateRenderMeshesShaderProg();
+	dataMesh dataSpider;
+
+	for (unsigned int n = 0; n < rendererSpider.myMeshes.size(); ++n)
+	{
+		mu.pushMatrix(gmu::MODEL);
+
+		// Transformaï¿½ï¿½o original da mesh importada
+		mu.multMatrix(
+			gmu::MODEL,
+			rendererSpider.myMeshes[n].transform
+		);
+
+		// Posiï¿½ï¿½o da aranha
+		mu.translate(gmu::MODEL, x, y, z);
+
+		mu.scale(gmu::MODEL, scale, scale, scale);
+
+		mu.computeDerivedMatrix(gmu::PROJ_VIEW_MODEL);
+		mu.computeNormalMatrix3x3();
+
+		dataSpider.meshID = n;
+		dataSpider.texMode = 0;
+		dataSpider.model = mu.get(gmu::MODEL);
+		dataSpider.view = mu.get(gmu::VIEW);
+		dataSpider.vm = mu.get(gmu::VIEW_MODEL);
+		dataSpider.pvm = mu.get(gmu::PROJ_VIEW_MODEL);
+		dataSpider.normal = mu.getNormalMatrix();
+		dataSpider.normalMapKey = false;
+
+		rendererSpider.renderMeshFromAssimp(dataSpider);
+
+		mu.popMatrix(gmu::MODEL);
+	}
+	renderer.activateRenderMeshesShaderProg();
+}
+
+/// ::::::::::::::::::::::::::::::::::::::::::::::::COLISION FUNCIONS:::::::::::::::::::::::::::::::::::::::::::::::::://///
 // ============================================================================
 // COLLISION DETECTION SYSTEM
 // ============================================================================
@@ -1230,7 +1282,7 @@ AABB getCarAABB(const Car& car) {
 }
 
 AABB getButterAABB(const Butter& butter) {
-	float halfW = 2.35f;
+	float halfW = 1.85f;
 	float halfD = 1.0f;
 	return { butter.x - halfW, butter.x + halfW, butter.z - halfD, butter.z + halfD };
 }
@@ -1265,6 +1317,7 @@ void checkCollisions() {
 				gameOver = true;
 				gameOverTimer = 0.0f;
 			}
+			resetOrange(oranges[i]);
 			return;
 		}
 	}
@@ -1528,7 +1581,7 @@ void drawHUD() {
 	renderer.activateRenderMeshesShaderProg();
 }
 
-// desenhar exatamente a mesma coisa, mas na reflexão
+// desenhar exatamente a mesma coisa, mas na reflexï¿½o
 void drawReflectableObjects(float cheerioPosY, float candleBasePosY, float candleWickPosY) {
 
 	// Cheerios
@@ -1608,7 +1661,7 @@ void createTableReflectionMask(float tableWidth, float tableDepth, float tableTo
 }
 
 void drawPlanarReflection(float tableTopY, float cheerioPosY, float candleBasePosY, float candleWickPosY) {
-	// Só desenhar onde o stencil == 1
+	// Sï¿½ desenhar onde o stencil == 1
 	glStencilFunc(GL_EQUAL, 1, 0xFF);
 	glStencilMask(0x00);
 	glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
@@ -1761,7 +1814,7 @@ void renderSim(void) {
 	createTableReflectionMask( tableWidth, tableDepth, tableTopY);
 	drawPlanarReflection(tableTopY, cheerioPosY, candleBasePosY, candleWickPosY);
 
-	// reflexões ativas para a mesa
+	// reflexï¿½es ativas para a mesa
 	glEnable(GL_BLEND);
 	glBlendColor(0.0f, 0.0f, 0.0f, 0.80f);
 	glBlendFunc(GL_CONSTANT_ALPHA, GL_ONE_MINUS_CONSTANT_ALPHA);
@@ -1769,7 +1822,7 @@ void renderSim(void) {
 	// Draw the table
 	drawObject(TABLE_MESH, 0.0f,  tablePosY, 0.0f, tableWidth, tableHeight, tableDepth, 0.0f, 3);
 
-	// já não estão ativas
+	// jï¿½ nï¿½o estï¿½o ativas
 	glDisable(GL_BLEND);
 
 	// Draw the roads
@@ -1845,6 +1898,9 @@ void renderSim(void) {
 	for (int i = 0; i < NUM_ORANGES; i++) {
 		drawOrange(oranges[i]);
 	}
+
+	// Draw the spider
+	drawSpider(0, 5, 0, 20.0f);
 
 	// Draw the car
 	drawCar(carBarbie);
@@ -1980,7 +2036,7 @@ void processKeys(unsigned char key, int xx, int yy) {
 		case 'K':
 			glDisable(GL_MULTISAMPLE); break;
 
-		// iniciar o movimento ou aceleração
+		// iniciar o movimento ou aceleraï¿½ï¿½o
 		case 'w':
 		case 'W':
 			keyFrente = true;
@@ -2021,7 +2077,7 @@ void processKeyUp(unsigned char key, int xx, int yy)
 {
 	switch (key) {
 
-	// parar o movimento ou aceleração
+	// parar o movimento ou aceleraï¿½ï¿½o
 	case 'w':
 	case 'W':
 		keyFrente = false;
@@ -2130,6 +2186,24 @@ void mouseWheel(int wheel, int direction, int x, int y) {
 // SCENE SETUP & MAIN
 // ============================================================================
 
+void loadSpider()
+{
+	std::string spiderPath = "assets/spider/spider.obj";
+
+	strcpy_s(model_dir, sizeof(model_dir), "assets/spider/");
+
+	if (!Import3DFromFile(spiderPath, importerSpider, sceneSpider, spiderScaleFactor))
+	{
+		printf("ERROR: Spider could not be loaded!\n");
+		return;
+	}
+
+	createMyMeshFromAssimp(sceneSpider, &rendererSpider);
+
+	printf("Spider loaded successfully!\n");
+}
+
+//
 // Scene building with basic geometry
 //
 // 0: table (cube)
@@ -2469,6 +2543,8 @@ void buildScene() {
 	camX = r * sin(alpha * 3.14f / 180.0f) * cos(_beta * 3.14f / 180.0f);
 	camZ = r * cos(alpha * 3.14f / 180.0f) * cos(_beta * 3.14f / 180.0f);
 	camY = r * sin(_beta * 3.14f / 180.0f);
+
+	loadSpider();
 }
 
 int main(int argc, char **argv) {
@@ -2538,6 +2614,9 @@ int main(int argc, char **argv) {
 	if(!renderer.setRenderMeshesShaderProg("shaders/mesh.vert", "shaders/mesh.frag") || 
 		!renderer.setRenderTextShaderProg("shaders/ttf.vert", "shaders/ttf.frag"))
 	return(1);
+
+	if (!rendererSpider.setRenderMeshesShaderProg("shaders/assimp.vert", "shaders/assimp.frag"))
+		return(1);
 
 	//  GLUT main loop
 	glutMainLoop();

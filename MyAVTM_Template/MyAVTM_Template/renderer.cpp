@@ -145,10 +145,15 @@ bool Renderer::setRenderMeshesShaderProg(const std::string& vertShaderPath, cons
     if (!shader.isProgramValid())
         printf("GLSL Model Program Not Valid!\n");
 
+    model_loc = glGetUniformLocation(program, "m_model");
+    view_loc = glGetUniformLocation(program, "m_view");
     pvm_loc = glGetUniformLocation(program, "m_pvm");
     vm_loc = glGetUniformLocation(program, "m_viewModel");
     normal_loc = glGetUniformLocation(program, "m_normal");
     texMode_loc = glGetUniformLocation(program, "texMode"); // Different modes of texturing
+    normalMap_loc = glGetUniformLocation(program, "normalMap");
+    specularMap_loc = glGetUniformLocation(program, "specularMap");
+    diffMapCount_loc = glGetUniformLocation(program, "diffMapCount");
     tex_loc[0] = glGetUniformLocation(program, "texmap");
     tex_loc[1] = glGetUniformLocation(program, "texmap1");
     tex_loc[2] = glGetUniformLocation(program, "texmap2");
@@ -256,6 +261,92 @@ void Renderer::renderMesh(const dataMesh& data) {
     glUniform4fv(loc, 1, myMeshes[data.meshID].mat.emissive);
     loc = glGetUniformLocation(program, "mat.shininess");
     glUniform1f(loc, myMeshes[data.meshID].mat.shininess);
+
+    // Render mesh
+    glUniform1i(texMode_loc, data.texMode);
+
+    glBindVertexArray(myMeshes[data.meshID].vao);
+    glDrawElements(myMeshes[data.meshID].type, myMeshes[data.meshID].numIndexes, GL_UNSIGNED_INT, nullptr);
+    glBindVertexArray(0);
+}
+
+void Renderer::renderMeshFromAssimp(const dataMesh& data) {
+    GLint loc;
+    unsigned int  diffMapCount = 0;  //read 2 diffuse textures
+
+    printf("\n--- renderMeshFromAssimp ---\n");
+    printf("meshID = %d\n", data.meshID);
+    printf("model = %p\n", (void*)data.model);
+    printf("view = %p\n", (void*)data.view);
+    printf("vm = %p\n", (void*)data.vm);
+    printf("pvm = %p\n", (void*)data.pvm);
+    printf("normal = %p\n", (void*)data.normal);
+
+    printf("model_loc = %d\n", model_loc);
+    printf("view_loc = %d\n", view_loc);
+    printf("vm_loc = %d\n", vm_loc);
+    printf("pvm_loc = %d\n", pvm_loc);
+    printf("normal_loc = %d\n", normal_loc);
+
+    glUniform1i(normalMap_loc, false);   //GLSL normalMap variable initialized to 0
+    glUniform1i(specularMap_loc, false);
+    glUniform1ui(diffMapCount_loc, 0);
+
+    // be aware to activate previously the Model shader program
+    glUniformMatrix4fv(model_loc, 1, GL_FALSE, data.model);
+    glUniformMatrix4fv(view_loc, 1, GL_FALSE, data.view);
+    glUniformMatrix4fv(vm_loc, 1, GL_FALSE, data.vm);
+    glUniformMatrix4fv(pvm_loc, 1, GL_FALSE, data.pvm);
+    glUniformMatrix3fv(normal_loc, 1, GL_FALSE, data.normal);
+
+    // send the material
+    loc = glGetUniformLocation(program, "mat.ambient");
+    glUniform4fv(loc, 1, myMeshes[data.meshID].mat.ambient);
+    loc = glGetUniformLocation(program, "mat.diffuse");
+    glUniform4fv(loc, 1, myMeshes[data.meshID].mat.diffuse);
+    loc = glGetUniformLocation(program, "mat.specular");
+    glUniform4fv(loc, 1, myMeshes[data.meshID].mat.specular);
+    loc = glGetUniformLocation(program, "mat.emissive");
+    glUniform4fv(loc, 1, myMeshes[data.meshID].mat.emissive);
+    loc = glGetUniformLocation(program, "mat.shininess");
+    glUniform1f(loc, myMeshes[data.meshID].mat.shininess);
+    loc = glGetUniformLocation(program, "mat.texCount");
+    glUniform1i(loc, myMeshes[data.meshID].mat.texCount);
+
+    if (myMeshes[data.meshID].mat.texCount != 0) {
+        for (unsigned int i = 0; i < myMeshes[data.meshID].mat.texCount; ++i) {
+
+            //Activate a TU with a Texture Object
+            GLuint TU = myMeshes[data.meshID].texUnits[i];
+            glActiveTexture(GL_TEXTURE0 + TU);
+            glBindTexture(GL_TEXTURE_2D, TexObjArray.getTextureId(TU));
+
+            if (myMeshes[data.meshID].texTypes[i] == DIFFUSE) {
+                if (diffMapCount == 0) {
+                    diffMapCount++;
+                    glUniform1i(tex_loc[0], TU);
+                    glUniform1ui(diffMapCount_loc, diffMapCount);
+                }
+                else if (diffMapCount == 1) {
+                    diffMapCount++;
+                    glUniform1i(tex_loc[1], TU);
+                    glUniform1ui(diffMapCount_loc, diffMapCount);
+                }
+                else printf("Only supports a Material with a maximum of 2 diffuse textures\n");
+            }
+            else if (myMeshes[data.meshID].texTypes[i] == SPECULAR) {
+                glUniform1i(tex_loc[2], TU);
+                glUniform1i(specularMap_loc, true);
+            }
+            else if (myMeshes[data.meshID].texTypes[i] == NORMALS) { //Normal map
+                if (data.normalMapKey)
+                    glUniform1i(normalMap_loc, data.normalMapKey);
+                glUniform1i(tex_loc[3], TU);
+
+            }
+            else printf("Texture Map not supported\n");
+        }
+    }
 
     // Render mesh
     glUniform1i(texMode_loc, data.texMode);

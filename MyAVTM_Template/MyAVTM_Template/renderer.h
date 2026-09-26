@@ -12,8 +12,9 @@
 
 struct dataMesh {
   int meshID = 0;  //mesh ID in the myMeshes array
-  float *pvm, *vm, *normal;  //matrices pointers
+  float *model, *view, *pvm, *vm, *normal;  //matrices pointers
   int texMode = 0;  //type of shading-> 0:no texturing; 1:modulate diffuse color with texel color; 2:diffuse color is replaced by texel color; 3: multitexturing
+  bool normalMapKey = false;  //if true, the normal comes from the normalMap texture. Used for the spider
 };
 
 enum class Align {
@@ -50,6 +51,8 @@ public:
 
   void renderMesh(const dataMesh &data);
 
+  void renderMeshFromAssimp(const dataMesh& data);
+
   void renderText(const TextCommand &text);
 
   void setDirLightMode(bool dayLightMode, float direction[3]);
@@ -78,8 +81,12 @@ private:
   // Text font rasterizer GLSL program
   GLuint textProgram;
 
-  GLint pvm_loc, vm_loc, normal_loc, texMode_loc;
+  GLint model_loc, view_loc, pvm_loc, vm_loc, normal_loc, texMode_loc;
   GLint tex_loc[MAX_TEXTURES];
+
+  GLboolean normalMap_loc;
+  GLboolean specularMap_loc;
+  GLint diffMapCount_loc;
 
   // Render font GLSL program variable locations and VAO
   GLint fontPvm_loc, textColor_loc;

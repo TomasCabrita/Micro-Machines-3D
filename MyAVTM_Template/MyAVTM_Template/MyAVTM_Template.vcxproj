@@ -157,6 +157,7 @@
   <ItemGroup>
     <ClInclude Include="cube.h" />
     <ClInclude Include="mathUtility.h" />
+    <ClInclude Include="meshFromAssimp.h" />
     <ClInclude Include="model.h" />
     <ClInclude Include="renderer.h" />
     <ClInclude Include="shader.h" />
@@ -168,6 +169,7 @@
     <ClCompile Include="basic_geometry.cpp" />
     <ClCompile Include="lightDemo.cpp" />
     <ClCompile Include="mathUtility.cpp" />
+    <ClCompile Include="meshFromAssimp.cpp" />
     <ClCompile Include="renderer.cpp" />
     <ClCompile Include="shader.cpp" />
     <ClCompile Include="texture.cpp" />
