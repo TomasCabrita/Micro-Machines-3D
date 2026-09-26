@@ -37,6 +37,9 @@ uniform vec4 headlightPos[2]; // Headlight positions
 uniform float spotCosCutOff;
 uniform float spotExp;
 
+uniform bool fogMode;
+uniform vec4 fogColor = vec4(0.5, 0.5, 0.5, 1.0); // Gray fog color
+
 out vec4 colorOut;
 
 void main() {
@@ -140,5 +143,13 @@ void main() {
 		texel = texture(texmap, DataIn.tex_coord);  // texel from lighwood.tga
 		texel1 = texture(texmap1, DataIn.tex_coord);  // texel from wood_2.jpg
 		colorOut = vec4(max(totalIntensity * texel * texel1 + totalSpecular, 0.07 * texel * texel1).rgb, 1.0);
+	}
+
+	if (fogMode) {
+		float dist = length(DataIn.eye); // Distance from the camera to the fragment
+		float fogStart = 20.0;
+		float fogEnd = 120.0;
+		float fogFactor = clamp((fogEnd - dist) / (fogEnd - fogStart), 0.0, 1.0);
+		colorOut = mix(fogColor, colorOut, fogFactor);
 	}
 }

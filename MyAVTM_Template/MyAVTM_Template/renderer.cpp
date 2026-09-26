@@ -122,7 +122,6 @@ bool Renderer::truetypeInit(const std::string& fontFile) {
     return true;
 }
 
-
 bool Renderer::setRenderMeshesShaderProg(const std::string& vertShaderPath, const std::string& fragShaderPath) {
 
     // Shader for models
@@ -165,9 +164,11 @@ bool Renderer::setRenderMeshesShaderProg(const std::string& vertShaderPath, cons
     headlightDir_loc = glGetUniformLocation(program, "headlightDir");
     spotCosCutOff_loc = glGetUniformLocation(program, "spotCosCutOff");
     spotExp_loc = glGetUniformLocation(program, "spotExp");
+	fogMode_loc = glGetUniformLocation(program, "fogMode");
 
     return(shader.isProgramLinked() && shader.isProgramValid());
 }
+
 Renderer::~Renderer() {
     glDeleteProgram(program);
     glDeleteProgram(textProgram);
@@ -204,7 +205,6 @@ bool Renderer::setRenderTextShaderProg(const std::string& vertShaderPath, const 
     return(shader.isProgramLinked() && shader.isProgramValid());
 }
 
-
 void Renderer::activateRenderMeshesShaderProg() {   //GLSL program to draw the meshes
     glUseProgram(program);
 }
@@ -225,6 +225,10 @@ void Renderer::setSpotLightMode(bool headlightMode, float position[2][4], float 
 	glUniform3fv(headlightDir_loc, 1, direction);
 	glUniform1f(spotCosCutOff_loc, spotCosCutOff);
 	glUniform1f(spotExp_loc, spotExp);
+}
+
+void Renderer::setFogMode(bool fogMode) {
+    glUniform1i(fogMode_loc, fogMode ? 1 : 0);
 }
 
 void Renderer::setTexUnit(int tuId, int texObjArray_pos) {

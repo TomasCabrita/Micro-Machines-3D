@@ -121,6 +121,9 @@ bool headlightMode = false;
 float spotCosCutOff = 35.0f;
 float spotEx = 8.0f;
 
+// Fog
+bool fogMode = true;
+
 // Constants for mesh IDs
 const int TABLE_MESH		 = 0; // table
 const int ROAD_MESH			 = 1; // road
@@ -1699,7 +1702,7 @@ void renderSim(void) {
 	dirEye[0] = dirAux[0]; dirEye[1] = dirAux[1]; dirEye[2] = dirAux[2];
 	renderer.setDirLightMode(dayMode, dirEye);
 
-		// Set point light mode (candles) and transform the candle positions to eye space
+	// Set point light mode (candles) and transform the candle positions to eye space
 	float candleEye[6][4];
 	for (int i = 0; i < 6; i++) {
 		float aux[4];
@@ -1746,6 +1749,13 @@ void renderSim(void) {
 
 	float cosCutOff = cosf(spotCosCutOff * DEG2RAD);
 	renderer.setSpotLightMode(headlightMode, spotPosEye, spotDirEye, cosCutOff, spotEx);
+
+	if (CameraMode == 1 || CameraMode == 2) {
+		renderer.setFogMode(false);
+	}
+	else {
+		renderer.setFogMode(fogMode);
+	}
 
 	float tableTopY = tablePosY + tableHeight * 0.5f;
 	createTableReflectionMask( tableWidth, tableDepth, tableTopY);
@@ -1894,8 +1904,7 @@ void changeSize(int w, int h) {
 
 }
 
-void processKeys(unsigned char key, int xx, int yy)
-{
+void processKeys(unsigned char key, int xx, int yy) {
 	switch(key) {
 		//Cameras (1,2,3)
 		case '1':
@@ -1946,6 +1955,12 @@ void processKeys(unsigned char key, int xx, int yy)
 		case 'H':
 			headlightMode = !headlightMode;
 			printf("Headlights: %s\n", headlightMode ? "ON" : "OFF");
+			break;
+
+		case 'f':
+		case 'F':
+			fogMode = !fogMode;
+			printf("Fog: %s\n", fogMode ? "ON" : "OFF");
 			break;
 
 		case 'm':    //reset

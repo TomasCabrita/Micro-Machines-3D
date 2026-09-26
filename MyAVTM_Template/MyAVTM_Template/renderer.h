@@ -58,6 +58,8 @@ public:
 
   void setSpotLightMode(bool headlightMode, float position[2][4], float direction[3], float spotCosCutOff, float spotExp);
 
+  void setFogMode(bool fogMode);
+
   void setTexUnit(int tuId, int texObjArray_pos);
 
   float textWidth(const std::string& str, float size = 1.0f);
@@ -86,6 +88,7 @@ private:
   // Light location variables
   GLint dayMode_loc, candleMode_loc, headlightMode_loc;
   GLint lightDir_loc, candlePos_loc, headlightPos_loc, headlightDir_loc, spotCosCutOff_loc, spotExp_loc;
+  GLint fogMode_loc;
 
     struct Font {
         float size;
