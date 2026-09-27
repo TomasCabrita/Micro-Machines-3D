@@ -192,6 +192,8 @@ struct Car {
 
 Car carBarbie;
 
+float carPrevX = CAR_START_X, carPrevZ = CAR_START_Z;
+
 struct CarMeshIDs {
 	int paint, trim, trimCyl, chrome, chromeCyl, rubber;
 	int interior, seat, headlight, taillight, plate, plateBlue;
@@ -224,6 +226,11 @@ const float CAR_WHEEL_R = 0.80f; // Wheel radius
 struct Butter {
 	float x;
 	float z;
+
+	float tilt = 0.0f;
+	float tiltVel = 0.0f;
+	int tiltAxis = 0;
+	float tiltSign = 1.0f;
 };
 
 Butter initialButters[] = {
@@ -240,6 +247,15 @@ Butter initialButters[] = {
 	{ 40.0f, -30.0f }, // Road 10
 	{ 60.0f, -60.0f }  // Road 11
 };
+
+const float BUTTER_MIN_X = -2.0f;
+const float BUTTER_MAX_X = 1.7f;
+const float BUTTER_HALF_Z = 1.0f;
+const float BUTTER_HEIGHT = 1.2f;
+const float BUTTER_BASE_Y = -0.45f;
+const float BUTTER_TILT_GRAVITY = 500.0f;
+const float BUTTER_TILT_MAX = 30.0f;
+const float BUTTER_BOUNCE = 0.35f;
 
 Butter butters[sizeof(initialButters) / sizeof(initialButters[0])]; // Array to hold the current positions of the butters
 
@@ -265,6 +281,18 @@ Orange oranges[] = {
 };
 
 const int NUM_ORANGES = sizeof(oranges) / sizeof(oranges[0]);
+
+const int NUM_CANDLES = 6;
+const float CANDLE_RADIUS = 2.0f;
+const float candlesXZ[NUM_CANDLES][2] = {
+	{ 51.25f,  32.25f },
+	{ -5.5f,   48.5f },
+	{-45.5f,   50.5f },
+	{-35.5f,  -50.5f },
+	{ 20.5f,  -19.0f },
+	{ 55.5f,  -41.0f }
+};
+
 
 // Cheerios structure
 
@@ -300,9 +328,17 @@ CheeriosLine cheeriosLine[] = {
 	{ 50.0f, -50.0f, 60.0f, -50.0f }  // 11.2 margin
 };
 
+const float CHEERIO_FALL_GRAVITY = 35.0f;
 struct CheerioInstance {
 	float x;
 	float z;
+
+	// cair da mesa quando são empurrados
+	bool falling = false;
+	bool gone = false; // desaparecer dps de sair do campo de visão
+	float y = 0.0f;
+	float vx = 0.0f, vy = 0.0f, vz = 0.0f;
+	float spin = 0.0f;
 };
 
 vector<CheerioInstance> cheerioInstances; // Vector to store the positions of cheerios along the lines
@@ -738,23 +774,44 @@ void drawButter(const Butter& butter)
 {
 	mu.pushMatrix(gmu::MODEL);
 
-	mu.translate(gmu::MODEL, butter.x, 0.0f, butter.z);
+	mu.translate(gmu::MODEL, butter.x, BUTTER_BASE_Y, butter.z);
 
-	float height = 1.2f;
-	float depth = 2.0f;
+	// abanar se atingido
+	if (butter.tilt > 0.0f) {
+		if (butter.tiltAxis == 0) {
+			// inclina X, roda em Z
+			float px = (butter.tiltSign > 0.0f) ? BUTTER_MAX_X : BUTTER_MIN_X;
+			mu.translate(gmu::MODEL, px, 0.0f, 0.0f);
+			mu.rotate(gmu::MODEL, -butter.tiltSign * butter.tilt, 0.0f, 0.0f, 1.0f);
+			mu.translate(gmu::MODEL, -px, 0.0f, 0.0f);
+		}
+
+		else {
+			// inclina em Z, roda em X
+			float pz = butter.tiltSign * BUTTER_HALF_Z;
+			mu.translate(gmu::MODEL, 0.0f, 0.0f, pz);
+			mu.rotate(gmu::MODEL, butter.tiltSign * butter.tilt, 1.0f, 0.0f, 0.0f);
+			mu.translate(gmu::MODEL, 0.0f, 0.0f, -pz);
+		}
+	}
+
+	float height = BUTTER_HEIGHT;
+	float depth = 2.0f * BUTTER_HALF_Z;
+	float yc = 0.5f * BUTTER_HEIGHT;
+
 
 	// Yellow
 	drawObject(
 		BUTTER_YELLOW_MESH,
-		-1.6f, 0.5f, 0.0f,
+		-1.6f, yc, 0.0f,
 		0.8f, height, depth,
 		0.0f, 0
 	);
-
+	
 	// Small beige stripe
 	drawObject(
 		BUTTER_BEIGE_MESH,
-		-0.95f, 0.5f, 0.0f,
+		-0.95f, yc, 0.0f,
 		0.5f, height, depth,
 		0.0f, 0
 	);
@@ -762,7 +819,7 @@ void drawButter(const Butter& butter)
 	// Blue stripe
 	drawObject(
 		BUTTER_BLUE_MESH,
-		-0.25f, 0.5f, 0.0f,
+		-0.25f, yc, 0.0f,
 		0.9f, height, depth,
 		0.0f, 0
 	);
@@ -770,7 +827,7 @@ void drawButter(const Butter& butter)
 	// Large beige part
 	drawObject(
 		BUTTER_BEIGE_MESH,
-		0.95f, 0.5f, 0.0f,
+		0.95f, yc, 0.0f,
 		1.5f, height, depth,
 		0.0f, 0
 	);
@@ -969,6 +1026,79 @@ void resetCheerios() {
 		}
 	}
 }
+
+// [NOVO] O carro bateu na manteiga: dá-lhe um "empurrão" angular (não a tira do sítio)
+void hitButter(Butter& b, int axis, float sign, float impactSpeed) {
+	float impulse = std::min(60.0f + 3.0f * impactSpeed, 260.0f); // graus/s: mais rápido = tomba mais
+
+	if (b.tilt < 1.0f) {
+		// Estava assente: começa a tombar para longe do carro
+		b.tiltAxis = axis;
+		b.tiltSign = sign;
+		b.tiltVel = impulse;
+	}
+	else if (b.tiltAxis == axis && b.tiltSign == sign) {
+		// Já estava a tombar para o mesmo lado: só se a nova pancada for mais forte
+		b.tiltVel = std::max(b.tiltVel, impulse);
+	}
+}
+
+// abanar quando vais contra as manteigas
+void updateButters(float deltaTime) {
+	for (int i = 0; i < NUM_BUTTERS; i++) {
+		Butter& b = butters[i];
+		if (b.tilt <= 0.0f && b.tiltVel <= 0.0f)
+			continue;
+
+		b.tiltVel -= BUTTER_TILT_GRAVITY * deltaTime;
+		b.tilt += b.tiltVel * deltaTime;
+
+		// não cai
+		if (b.tilt >= BUTTER_TILT_MAX) {
+			b.tilt = BUTTER_TILT_MAX;
+			b.tiltVel = 0.0f;
+		}
+
+		if (b.tilt <= 0.0f) {
+			b.tilt = 0.0f;
+			b.tiltVel = -b.tiltVel * BUTTER_BOUNCE;
+			if (b.tiltVel < 20.0f)
+				b.tiltVel = 0.0f;
+		}
+	}
+}
+
+// cheerios fora da mesa,caiem e não re spawnam
+void updateCheerios(float deltaTime, float tableWidth, float tableDepth) {
+	for (auto& c : cheerioInstances) {
+		if (c.gone)
+			continue;
+
+		if (!c.falling) {
+			// igual ao carro
+			if (fabsf(c.x) > tableWidth * 0.5f || fabsf(c.z) > tableDepth * 0.5f) {
+				c.falling = true;
+				c.vy = 0.0f;
+			}
+			else {
+				continue;
+			}
+		}
+
+		// gravidade + velocidade com que foi empurrado
+		c.vy -= CHEERIO_FALL_GRAVITY * deltaTime;
+		c.y += c.vy * deltaTime;
+		c.x += c.vx * deltaTime;
+		c.z += c.vz * deltaTime;
+		c.vx *= (1.0f - 0.8f * deltaTime);
+		c.vz *= (1.0f - 0.8f * deltaTime);
+		c.spin += 360.0f * deltaTime;
+
+		if (c.y < -80.0f) // desaparece
+			c.gone = true;
+	}
+}
+
 
 // ============================================================================
 // GAME LOGIC & CAR DYNAMICS
@@ -1280,15 +1410,16 @@ void drawSpider(float x, float y, float z, float scale) {
 
 // Get the AABB for the car, butter, orange and cheerio
 AABB getCarAABB(const Car& car) {
-	float halfW = car.width * 0.5f - 0.1f;
-	float halfD = car.width * 0.5f - 0.1f;
-	return { car.x - halfW, car.x + halfW, car.z - halfD, car.z + halfD };
+	float a = car.angle * 3.14159265f / 180.0f;
+	float c = fabsf(cosf(a)), s = fabsf(sinf(a));
+	float halfX = 0.5f * (c * car.width + s * car.depth);
+	float halfZ = 0.5f * (s * car.width + c * car.depth);
+	return { car.x - halfX, car.x + halfX, car.z - halfZ, car.z + halfZ };
 }
 
 AABB getButterAABB(const Butter& butter) {
-	float halfW = 1.85f;
-	float halfD = 1.0f;
-	return { butter.x - halfW, butter.x + halfW, butter.z - halfD, butter.z + halfD };
+	return { butter.x + BUTTER_MIN_X, butter.x + BUTTER_MAX_X,
+		butter.z - BUTTER_HALF_Z, butter.z + BUTTER_HALF_Z };
 }
 
 AABB getOrangeAABB(const Orange& orange) {
@@ -1307,14 +1438,57 @@ bool checkAABBCollision(const AABB& a, const AABB& b) {
 		(a.minZ <= b.maxZ && a.maxZ >= b.minZ); // vertical overlap, z
 }
 
+// AABB of a candle
+AABB getCandleAABB(int i) {
+	float x = candlesXZ[i][0], z = candlesXZ[i][1];
+	return { x - CANDLE_RADIUS, x + CANDLE_RADIUS, z - CANDLE_RADIUS, z + CANDLE_RADIUS };
+}
+
+// If they touch, push the car back out until it just touches the candle. Returns true on collision.
+bool pushCarOutOfCandle(Car& car, float cx, float cz) {
+	float a = car.angle * 3.14159265f / 180.0f;
+	float c = cosf(a), s = sinf(a);
+	float hw = 0.5f * car.width, hd = 0.5f * car.depth;
+
+	float dx = cx - car.x, dz = cz - car.z;
+	float lx = dx * c - dz * s;
+	float lz = dx * s + dz * c;
+
+	float qx = std::max(-hw, std::min(lx, hw));
+	float qz = std::max(-hd, std::min(lz, hd));
+	float ex = lx - qx, ez = lz - qz; // from the car to the candle
+	float dist = sqrtf(ex * ex + ez * ez);
+	if (dist >= CANDLE_RADIUS)
+		return false; // not touching
+
+	float nx, nz, push;
+	if (dist > 0.0001f) {
+		nx = ex / dist;
+		nz = ez / dist;
+		push = CANDLE_RADIUS - dist;
+	}
+	else {
+		float px = hw - fabsf(lx), pz = hd - fabsf(lz);
+		if (px < pz) { nx = (lx >= 0.0f) ? 1.0f : -1.0f; nz = 0.0f; push = px + CANDLE_RADIUS; }
+		else { nx = 0.0f; nz = (lz >= 0.0f) ? 1.0f : -1.0f; push = pz + CANDLE_RADIUS; }
+	}
+
+	float wx = nx * c + nz * s;
+	float wz = -nx * s + nz * c;
+	const float gap = 0.01f;
+	car.x -= wx * (push + gap);
+	car.z -= wz * (push + gap);
+	return true;
+}
+
 // Check for collisions between the car and other objects
 void checkCollisions() {
-	AABB carBox = getCarAABB(carBarbie);
+	AABB carAABB = getCarAABB(carBarbie);
 
-	// 1. Verify collision with Oranges (Car loses a life and respawns)
+	// 1. Oranges: the car loses a life and respawns
 	for (int i = 0; i < NUM_ORANGES; i++) {
 		AABB orangeBox = getOrangeAABB(oranges[i]);
-		if (checkAABBCollision(carBox, orangeBox)) {
+		if (checkAABBCollision(carAABB, orangeBox)) {
 			lives--;
 			respawnCar();
 			if (lives <= 0) {
@@ -1326,34 +1500,80 @@ void checkCollisions() {
 		}
 	}
 
-	// 2. Verify collision with Butters (Car stops and pushes the butter)
+	// 2.1 Verify collision with Butters (Car stops and butter don't move)
 	for (int i = 0; i < NUM_BUTTERS; i++) {
-		AABB butterBox = getButterAABB(butters[i]);
-		if (checkAABBCollision(carBox, butterBox)) {
-			// Push the butter slightly in the direction of the car's movement
-			float pushDist = 0.4f;
-			butters[i].x += carBarbie.dir[0] * pushDist;
-			butters[i].z += carBarbie.dir[2] * pushDist;
+		AABB b = getButterAABB(butters[i]);
+		carAABB = getCarAABB(carBarbie); // the car may have been pushed back by another butter
+		if (!checkAABBCollision(carAABB, b))
+			continue;
 
-			// Stop the car
-			carBarbie.speed = 0.0f;
+		// de onde foi colidido
+		float dx = carPrevX - carBarbie.x, dz = carPrevZ - carBarbie.z;
+		bool wasInX = (carAABB.minX + dx < b.maxX) && (carAABB.maxX + dx > b.minX);
+		bool wasInZ = (carAABB.minZ + dz < b.maxZ) && (carAABB.maxZ + dz > b.minZ);
+
+		bool alongX;
+		if (wasInZ && !wasInX)
+			alongX = true; // Z: X face
+		else if (wasInX && !wasInZ)
+			alongX = false; // X: Z face
+		else
+			alongX = std::min(carAABB.maxX - b.minX, b.maxX - carAABB.minX) <
+			std::min(carAABB.maxZ - b.minZ, b.maxZ - carAABB.minZ);
+
+		const float gap = 0.01f;
+		float sign;
+		if (alongX) {
+			sign = (carPrevX < 0.5f * (b.minX + b.maxX)) ? 1.0f : -1.0f;
+			if (sign > 0.0f) carBarbie.x -= (carAABB.maxX - b.minX) + gap;
+			else             carBarbie.x += (b.maxX - carAABB.minX) + gap;
 		}
+		else {
+			sign = (carPrevZ < 0.5f * (b.minZ + b.maxZ)) ? 1.0f : -1.0f;
+			if (sign > 0.0f) carBarbie.z -= (carAABB.maxZ - b.minZ) + gap;
+			else             carBarbie.z += (b.maxZ - carAABB.minZ) + gap;
+		}
+
+		float impact = fabsf(carBarbie.speed);
+		carBarbie.speed = 0.0f;
+		if (impact > 2.0f)
+			hitButter(butters[i], alongX ? 0 : 1, sign, impact);
 	}
 
+	//2.2 Candles: they don't move and the car cannot move
+	for (int i = 0; i < NUM_CANDLES; i++) {
+		carAABB = getCarAABB(carBarbie);
+		if (!checkAABBCollision(carAABB, getCandleAABB(i)))
+			continue; // AABB: first quick test
+		if (pushCarOutOfCandle(carBarbie, candlesXZ[i][0], candlesXZ[i][1]))
+			carBarbie.speed = 0.0f; // the car stops against the candle
+	}
+
+
 	// 3. Verify collision with Cheerios (Car stops and pushes the cheerio)
+	carAABB = getCarAABB(carBarbie);
+	float moveSign = (carBarbie.speed >= 0.0f) ? 1.0f : -1.0f;
 	for (auto& cheerio : cheerioInstances) {
+		if (cheerio.falling)
+			continue; // cair
+
 		AABB cheerioBox = getCheerioAABB(cheerio);
-		if (checkAABBCollision(carBox, cheerioBox)) {
-			// Push the cheerio slightly in the direction of the car's movement
+		if (checkAABBCollision(carAABB, cheerioBox)) {
+			// Push the cheerio slightly in the direction the car is moving
 			float pushDist = 0.5f;
-			cheerio.x += carBarbie.dir[0] * pushDist;
-			cheerio.z += carBarbie.dir[2] * pushDist;
+			cheerio.x += moveSign * carBarbie.dir[0] * pushDist;
+			cheerio.z += moveSign * carBarbie.dir[2] * pushDist;
+
+			// Speed it leaves with if it goes over the edge of the table
+			cheerio.vx = moveSign * carBarbie.dir[0] * 15.0f;
+			cheerio.vz = moveSign * carBarbie.dir[2] * 15.0f;
 
 			// Stop the car
 			carBarbie.speed = 0.0f;
 		}
 	}
 }
+
 
 // ============================================================================
 // CAMERA CONTROLS & HUD RENDERING
@@ -1588,8 +1808,9 @@ void drawHUD() {
 // desenhar exatamente a mesma coisa, mas na reflex�o
 void drawReflectableObjects(float cheerioPosY, float candleBasePosY, float candleWickPosY) {
 
-	// Cheerios
+	// Cheerios (os que caíram não reflete)
 	for (const auto& cheerio : cheerioInstances) {
+		if (cheerio.falling) continue;
 		drawObject(CHEERIO_MESH, cheerio.x, cheerioPosY, cheerio.z, 1.0f, 1.0f, 1.0f);
 	}
 
@@ -1731,10 +1952,14 @@ void renderSim(void) {
 		} else if (carFalling) {
 			updateCarFall(deltaTime);
 		} else {
+			carPrevX = carBarbie.x;
+			carPrevZ = carBarbie.z;
 			updateCarMoviment(tableWidth, tableDepth, deltaTime);
 			checkCollisions();
 		}
 		updateOranges();
+		updateButters(deltaTime);
+		updateCheerios(deltaTime, tableWidth, tableDepth);
 	}
 
 	// Clear the color and depth buffers to prepare for rendering the new frame
@@ -1904,9 +2129,10 @@ void renderSim(void) {
 	drawObject(MARGIN_MESH, 55.0f,  marginPosY, -70.0f, 50.0f,       marginHeight, marginWidth); // 11.1: Front horizontal road margin
 	drawObject(MARGIN_MESH, 55.0f,  marginPosY, -50.0f, 10.0f,       marginHeight, marginWidth); // 11.2: Back horizontal road margin
 
-	// Draw the cheerios along the road margins
+	// Draw the cheerios along the road margins (or falling)
 	for (const auto& cheerio : cheerioInstances) {
-		drawObject(CHEERIO_MESH, cheerio.x, cheerioPosY, cheerio.z, 1.0f, 1.0f, 1.0f);
+		if (cheerio.gone) continue;
+		drawObject(CHEERIO_MESH, cheerio.x, cheerioPosY + cheerio.y, cheerio.z, 1.0f, 1.0f, 1.0f, cheerio.spin, 1);
 	}
 
 	// Draw the start flag and start line
