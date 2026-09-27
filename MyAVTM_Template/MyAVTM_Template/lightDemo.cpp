@@ -75,7 +75,7 @@ bool fontLoaded = false;
 // Engine state variables
 gmu mu; // Object of class mathUtility to manage the model, view and projection matrices
 Renderer renderer; // Object of class Renderer to manage the rendering of meshes and textures
-	
+
 // Camera position and orientation
 float camX, camY, camZ;
 float alpha = 57.0f, _beta = 18.0f;
@@ -324,10 +324,11 @@ void drawObject(int meshID,
 	float posX, float posY, float posZ,
 	float scaleX, float scaleY, float scaleZ,
 	float rotAngle = 0.0f,
-	int texMode = 1) {
+	int texMode = 1,
+	bool normalMapKey = false) {
 
 	mu.pushMatrix(gmu::MODEL);
-	
+
 	mu.translate(gmu::MODEL, posX, posY, posZ); // Translate the cube to the desired position
 	mu.rotate(gmu::MODEL, rotAngle, 1.0f, 0.0f, 0.0f); // Rotate the cube around the X-axis
 	mu.scale(gmu::MODEL, scaleX, scaleY, scaleZ); // Scale the cube to the desired size
@@ -339,6 +340,7 @@ void drawObject(int meshID,
 	dataMesh data;
 	data.meshID = meshID;
 	data.texMode = texMode; // 0: No texturing; 1: Modulate diffuse color with texel color; 2: Diffuse color is replaced by texel color; 3: Multitexturing
+	data.normalMapKey = normalMapKey;
 	data.vm = mu.get(gmu::VIEW_MODEL),
 		data.pvm = mu.get(gmu::PROJ_VIEW_MODEL);
 	data.normal = mu.getNormalMatrix();
@@ -371,7 +373,6 @@ void drawCenteredObject(
 	data.meshID = meshID;
 	data.texMode = texMode;
 	data.vm = mu.get(gmu::VIEW_MODEL);
-	data.pvm = mu.get(gmu::PROJ_VIEW_MODEL);
 	data.pvm = mu.get(gmu::PROJ_VIEW_MODEL);
 	data.normal = mu.getNormalMatrix();
 	renderer.renderMesh(data);
@@ -1094,7 +1095,7 @@ void updateCarMoviment(float tableWidth, float tableDepth, float deltaTime) {
 			if (carBarbie.speed < 0.0f) {
 				carBarbie.speed = 0.0f;
 			}
-				
+
 		}
 
 		else if (carBarbie.speed < 0.0f) {
@@ -1113,7 +1114,7 @@ void updateCarMoviment(float tableWidth, float tableDepth, float deltaTime) {
 			carBarbie.speed += brakePower * deltaTime;
 			if (carBarbie.speed > 0.0f) {
 				carBarbie.speed = 0.0f;
-			}	
+			}
 		}
 
 		// If the car is stopped or moving forward: accelerate
@@ -1132,7 +1133,7 @@ void updateCarMoviment(float tableWidth, float tableDepth, float deltaTime) {
 			if (carBarbie.speed < 0.0f) {
 				carBarbie.speed = 0.0f;
 			}
-				
+
 		}
 
 		// If the car is stopped or moving backward: accelerate backward
@@ -1150,7 +1151,7 @@ void updateCarMoviment(float tableWidth, float tableDepth, float deltaTime) {
 			if (carBarbie.speed < 0.0f) {
 				carBarbie.speed = 0.0f;
 			}
-				
+
 		}
 
 		else if (carBarbie.speed < 0.0f) {
@@ -1159,7 +1160,7 @@ void updateCarMoviment(float tableWidth, float tableDepth, float deltaTime) {
 			if (carBarbie.speed > 0.0f) {
 				carBarbie.speed = 0.0f;
 			}
-				
+
 		}
 
 	}
@@ -1168,11 +1169,11 @@ void updateCarMoviment(float tableWidth, float tableDepth, float deltaTime) {
 	if (carBarbie.speed > carBarbie.maxSpeed) {
 		carBarbie.speed = carBarbie.maxSpeed;
 	}
-		
+
 	if (carBarbie.speed < -carBarbie.maxSpeed) {
 		carBarbie.speed = -carBarbie.maxSpeed;
 	}
-	
+
 
 	// Turning controls
 	float turnDirection = 0.0f;
@@ -1181,12 +1182,12 @@ void updateCarMoviment(float tableWidth, float tableDepth, float deltaTime) {
 	if (keyEsq && !keyDir) {
 		turnDirection = 1.0f;
 	}
-		
+
 	// D: right
 	else if (keyDir && !keyEsq) {
 		turnDirection = -1.0f;
 	}
-		
+
 	// Only turn if the car is moving (forward or backward)
 	if (fabs(carBarbie.speed) > 0.01f) {
 		float speedFactor = fabs(carBarbie.speed) / carBarbie.maxSpeed;
@@ -1202,11 +1203,11 @@ void updateCarMoviment(float tableWidth, float tableDepth, float deltaTime) {
 	}
 
 	// Maximum angle
-	if (carBarbie.angle >= 360.0f){
+	if (carBarbie.angle >= 360.0f) {
 		carBarbie.angle -= 360.0f;
 	}
-		
-	if (carBarbie.angle < 0.0f){
+
+	if (carBarbie.angle < 0.0f) {
 		carBarbie.angle += 360.0f;
 	}
 
@@ -1228,10 +1229,10 @@ void updateCarMoviment(float tableWidth, float tableDepth, float deltaTime) {
 	if (fabs(carBarbie.x) > (tableWidth * 0.5f) || fabs(carBarbie.z) > (tableDepth * 0.5f)) {
 		startCarFall();
 	}
-		
+
 }
 
-void drawSpider(float x, float y, float z, float scale){
+void drawSpider(float x, float y, float z, float scale) {
 	rendererSpider.activateRenderMeshesShaderProg();
 	dataMesh dataSpider;
 
@@ -1675,7 +1676,7 @@ void drawPlanarReflection(float tableTopY, float cheerioPosY, float candleBasePo
 	mu.scale(gmu::MODEL, 1.0f, -1.0f, 1.0f);
 	glDisable(GL_CULL_FACE);
 	drawReflectableObjects(cheerioPosY, candleBasePosY, candleWickPosY);
-	
+
 	glEnable(GL_CULL_FACE);
 
 	mu.popMatrix(gmu::MODEL);
@@ -1742,9 +1743,11 @@ void renderSim(void) {
 	// Set the texture units for the shader program
 	renderer.setTexUnit(0, 0); // lightwood.tga
 	renderer.setTexUnit(1, 1); // wood_2.jpg
-	renderer.setTexUnit(2, 2); // stone.tga
-	renderer.setTexUnit(3, 3); // checker.png
-	renderer.setTexUnit(4, 4); // road.jpg
+	renderer.setTexUnit(2, 2); // wood_2_normal.jpg
+	renderer.setTexUnit(3, 3); // stone.tga
+	renderer.setTexUnit(4, 4); // checker.png
+	renderer.setTexUnit(5, 5); // road.jpg
+	renderer.setTexUnit(6, 6); // road_normal.jpg
 
 	// Reset the model matrix and set up the camera based on the table dimensions
 	mu.loadIdentity(gmu::MODEL);
@@ -1813,7 +1816,7 @@ void renderSim(void) {
 	}
 
 	float tableTopY = tablePosY + tableHeight * 0.5f;
-	createTableReflectionMask( tableWidth, tableDepth, tableTopY);
+	createTableReflectionMask(tableWidth, tableDepth, tableTopY);
 	drawPlanarReflection(tableTopY, cheerioPosY, candleBasePosY, candleWickPosY);
 
 	// reflex�es ativas para a mesa
@@ -1822,23 +1825,23 @@ void renderSim(void) {
 	glBlendFunc(GL_CONSTANT_ALPHA, GL_ONE_MINUS_CONSTANT_ALPHA);
 
 	// Draw the table
-	drawObject(TABLE_MESH, 0.0f,  tablePosY, 0.0f, tableWidth, tableHeight, tableDepth, 0.0f, 3);
+	drawObject(TABLE_MESH, 0.0f, tablePosY, 0.0f, tableWidth, tableHeight, tableDepth, 0.0f, 3, true);
 
 	// j� n�o est�o ativas
 	glDisable(GL_BLEND);
 
 	// Draw the roads
-	drawObject(ROAD_MESH, 70.0f,  roadPosY, -5.0f,  roadWidth, roadHeight, 90.0f,	  0.0f, 4); // 1: Start road
-	drawObject(ROAD_MESH, 40.0f,  roadPosY, 50.0f,  80.0f,     roadHeight, roadWidth, 0.0f, 4); // 2: Horizontal road
-	drawObject(ROAD_MESH, -5.0f,  roadPosY, 30.0f,  50.0f,	   roadHeight, roadWidth, 0.0f, 4);	// 3: Horizontal road
-	drawObject(ROAD_MESH, -20.0f, roadPosY, 50.0f,  roadWidth, roadHeight, 20.0f,     0.0f, 4); // 4: Vertical road
-	drawObject(ROAD_MESH, -45.0f, roadPosY, 70.0f,  70.0f,	   roadHeight, roadWidth, 0.0f, 4); // 5: Horizontal road
-	drawObject(ROAD_MESH, -70.0f, roadPosY, 0.0f,   roadWidth, roadHeight, 120.0f,    0.0f, 4); // 6: Vertical road
-	drawObject(ROAD_MESH, -35.0f, roadPosY, -70.0f, 90.0f,	   roadHeight, roadWidth, 0.0f, 4); // 7: Horizontal road
-	drawObject(ROAD_MESH, 0.0f,   roadPosY, -35.0f, roadWidth, roadHeight, 50.0f,	  0.0f, 4); // 8: Vertical road
-	drawObject(ROAD_MESH, 20.0f,  roadPosY, 0.0f,   60.0f,     roadHeight, roadWidth, 0.0f, 4); // 9: Horizontal road
-	drawObject(ROAD_MESH, 40.0f,  roadPosY, -30.0f, roadWidth, roadHeight, 40.0f,	  0.0f, 4); // 10: Vertical road
-	drawObject(ROAD_MESH, 55.0f,  roadPosY, -60.0f, 50.0f,     roadHeight, roadWidth, 0.0f, 4); // 11: Horizontal road
+	drawObject(ROAD_MESH, 70.0f,  roadPosY, -5.0f,  roadWidth, roadHeight, 90.0f,	  0.0f, 4, true); // 1: Start road
+	drawObject(ROAD_MESH, 40.0f,  roadPosY, 50.0f,  80.0f,     roadHeight, roadWidth, 0.0f, 4, true); // 2: Horizontal road
+	drawObject(ROAD_MESH, -5.0f,  roadPosY, 30.0f,  50.0f,	   roadHeight, roadWidth, 0.0f, 4, true); // 3: Horizontal road
+	drawObject(ROAD_MESH, -20.0f, roadPosY, 50.0f,  roadWidth, roadHeight, 20.0f,     0.0f, 4, true); // 4: Vertical road
+	drawObject(ROAD_MESH, -45.0f, roadPosY, 70.0f,  70.0f,	   roadHeight, roadWidth, 0.0f, 4, true); // 5: Horizontal road
+	drawObject(ROAD_MESH, -70.0f, roadPosY, 0.0f,   roadWidth, roadHeight, 120.0f,    0.0f, 4, true); // 6: Vertical road
+	drawObject(ROAD_MESH, -35.0f, roadPosY, -70.0f, 90.0f,	   roadHeight, roadWidth, 0.0f, 4, true); // 7: Horizontal road
+	drawObject(ROAD_MESH, 0.0f,   roadPosY, -35.0f, roadWidth, roadHeight, 50.0f,	  0.0f, 4, true); // 8: Vertical road
+	drawObject(ROAD_MESH, 20.0f,  roadPosY, 0.0f,   60.0f,     roadHeight, roadWidth, 0.0f, 4, true); // 9: Horizontal road
+	drawObject(ROAD_MESH, 40.0f,  roadPosY, -30.0f, roadWidth, roadHeight, 40.0f,	  0.0f, 4, true); // 10: Vertical road
+	drawObject(ROAD_MESH, 55.0f,  roadPosY, -60.0f, 50.0f,     roadHeight, roadWidth, 0.0f, 4, true); // 11: Horizontal road
 
 	// Draw the margins
 	drawObject(MARGIN_MESH, 60.0f,  marginPosY, -5.0f,  marginWidth, marginHeight, 90.0f);       // 1.1: Left start road margin
@@ -1963,115 +1966,115 @@ void changeSize(int w, int h) {
 }
 
 void processKeys(unsigned char key, int xx, int yy) {
-	switch(key) {
+	switch (key) {
 		//Cameras (1,2,3)
-		case '1':
-			CameraMode = 1;
-			printf("Camera 1: Fixed orthogonal camera - satellite top view\n");
-			break;
+	case '1':
+		CameraMode = 1;
+		printf("Camera 1: Fixed orthogonal camera - satellite top view\n");
+		break;
 
-		case '2':
-			CameraMode = 2;
-			printf("Camera 2: Fixed prespective camera - satellite top view\n");
-			break;
+	case '2':
+		CameraMode = 2;
+		printf("Camera 2: Fixed prespective camera - satellite top view\n");
+		break;
 
-		case '3':
-			CameraMode = 3;
-			
-			alpha = 180.0f;
-			_beta = 18.0f;
-			r = 10.0f;
-			camX = r * sin(alpha * 3.14f / 180.0f) * cos(_beta * 3.14f / 180.0f);
-			camY = r * sin(_beta * 3.14f / 180.0f);
-			camZ = r * cos(alpha * 3.14f / 180.0f) * cos(_beta * 3.14f / 180.0f);
+	case '3':
+		CameraMode = 3;
 
-			printf("Camera 3: Moving prespective camera - car following\n");
-			break;
+		alpha = 180.0f;
+		_beta = 18.0f;
+		r = 10.0f;
+		camX = r * sin(alpha * 3.14f / 180.0f) * cos(_beta * 3.14f / 180.0f);
+		camY = r * sin(_beta * 3.14f / 180.0f);
+		camZ = r * cos(alpha * 3.14f / 180.0f) * cos(_beta * 3.14f / 180.0f);
 
-		case 27:
-			glutLeaveMainLoop();
-			break;
+		printf("Camera 3: Moving prespective camera - car following\n");
+		break;
 
-		case 'v':
-		case 'V':
-			printf("Camera Spherical Coordinates (%f, %f, %f)\n", alpha, _beta, r);
-			break;
+	case 27:
+		glutLeaveMainLoop();
+		break;
 
-		case 'n':
-		case 'N':
-			dayMode = !dayMode;
-			printf("Day mode: %s\n", dayMode ? "ON" : "OFF");
-			break;
+	case 'v':
+	case 'V':
+		printf("Camera Spherical Coordinates (%f, %f, %f)\n", alpha, _beta, r);
+		break;
 
-		case 'c':
-		case 'C':
-			candleMode = !candleMode;
-			printf("Candle mode: %s\n", candleMode ? "ON" : "OFF");
-			break;
+	case 'n':
+	case 'N':
+		dayMode = !dayMode;
+		printf("Day mode: %s\n", dayMode ? "ON" : "OFF");
+		break;
 
-		case 'h':
-		case 'H':
-			headlightMode = !headlightMode;
-			printf("Headlights: %s\n", headlightMode ? "ON" : "OFF");
-			break;
+	case 'c':
+	case 'C':
+		candleMode = !candleMode;
+		printf("Candle mode: %s\n", candleMode ? "ON" : "OFF");
+		break;
 
-		case 'f':
-		case 'F':
-			fogMode = !fogMode;
-			printf("Fog: %s\n", fogMode ? "ON" : "OFF");
-			break;
+	case 'h':
+	case 'H':
+		headlightMode = !headlightMode;
+		printf("Headlights: %s\n", headlightMode ? "ON" : "OFF");
+		break;
 
-		case 'm':    //reset
-		case 'M':
-			alpha = 57.0f; _beta = 18.0f;  // Camera Spherical Coordinates
-			r = 45.0f;
-			camX = r * sin(alpha * 3.14f / 180.0f) * cos(_beta * 3.14f / 180.0f);
-			camZ = r * cos(alpha * 3.14f / 180.0f) * cos(_beta * 3.14f / 180.0f);
-			camY = r * sin(_beta * 3.14f / 180.0f);
-			break;
+	case 'f':
+	case 'F':
+		fogMode = !fogMode;
+		printf("Fog: %s\n", fogMode ? "ON" : "OFF");
+		break;
 
-		case 'j':
-		case 'J':
-			glEnable(GL_MULTISAMPLE); break;
+	case 'm':    //reset
+	case 'M':
+		alpha = 57.0f; _beta = 18.0f;  // Camera Spherical Coordinates
+		r = 45.0f;
+		camX = r * sin(alpha * 3.14f / 180.0f) * cos(_beta * 3.14f / 180.0f);
+		camZ = r * cos(alpha * 3.14f / 180.0f) * cos(_beta * 3.14f / 180.0f);
+		camY = r * sin(_beta * 3.14f / 180.0f);
+		break;
 
-		case 'k':
-		case 'K':
-			glDisable(GL_MULTISAMPLE); break;
+	case 'j':
+	case 'J':
+		glEnable(GL_MULTISAMPLE); break;
+
+	case 'k':
+	case 'K':
+		glDisable(GL_MULTISAMPLE); break;
 
 		// iniciar o movimento ou acelera��o
-		case 'w':
-		case 'W':
-			keyFrente = true;
-			break;
+	case 'w':
+	case 'W':
+		keyFrente = true;
+		break;
 
-		case 'a':
-		case 'A':
-			keyEsq = true;
-			break;
+	case 'a':
+	case 'A':
+		keyEsq = true;
+		break;
 
-		case 's':
-		case 'S':
-			keyTras = true;
-			break;
+	case 's':
+	case 'S':
+		keyTras = true;
+		break;
 
-		case 'd':
-		case 'D':
-			keyDir = true;
-			break;
+	case 'd':
+	case 'D':
+		keyDir = true;
+		break;
 
-		case 'p':
-		case 'P':
-			paused = !paused;
-			break;
+	case 'p':
+	case 'P':
+		paused = !paused;
+		break;
 
-		case 'r':
-		case 'R':
-			if (paused || gameOver)
-			{
-				restartGame();
-				printf("Game restarted\n");
-			}
-			break;
+	case 'r':
+	case 'R':
+		if (paused || gameOver)
+		{
+			restartGame();
+			printf("Game restarted\n");
+		}
+		break;
 	}
 }
 
@@ -2079,7 +2082,7 @@ void processKeyUp(unsigned char key, int xx, int yy)
 {
 	switch (key) {
 
-	// parar o movimento ou acelera��o
+		// parar o movimento ou acelera��o
 	case 'w':
 	case 'W':
 		keyFrente = false;
@@ -2105,7 +2108,7 @@ void processKeyUp(unsigned char key, int xx, int yy)
 void processMouseButtons(int button, int state, int xx, int yy)
 {
 	// start tracking the mouse
-	if (state == GLUT_DOWN)  {
+	if (state == GLUT_DOWN) {
 		startX = xx;
 		startY = yy;
 		if (button == GLUT_LEFT_BUTTON)
@@ -2136,8 +2139,8 @@ void processMouseMotion(int xx, int yy)
 	float alphaAux, betaAux;
 	float rAux;
 
-	deltaX =  - xx + startX;
-	deltaY =    yy - startY;
+	deltaX = -xx + startX;
+	deltaY = yy - startY;
 
 	// left mouse button: move camera
 	if (tracking == 1) {
@@ -2166,8 +2169,8 @@ void processMouseMotion(int xx, int yy)
 	camZ = rAux * cos(alphaAux * 3.14f / 180.0f) * cos(betaAux * 3.14f / 180.0f);
 	camY = rAux *   						       sin(betaAux * 3.14f / 180.0f);
 
-//  uncomment this if not using an idle or refresh func
-//	glutPostRedisplay();
+	//  uncomment this if not using an idle or refresh func
+	//	glutPostRedisplay();
 }
 
 void mouseWheel(int wheel, int direction, int x, int y) {
@@ -2178,10 +2181,10 @@ void mouseWheel(int wheel, int direction, int x, int y) {
 
 	camX = r * sin(alpha * 3.14f / 180.0f) * cos(_beta * 3.14f / 180.0f);
 	camZ = r * cos(alpha * 3.14f / 180.0f) * cos(_beta * 3.14f / 180.0f);
-	camY = r *   						     sin(_beta * 3.14f / 180.0f);
+	camY = r * sin(_beta * 3.14f / 180.0f);
 
-//  uncomment this if not using an idle or refresh func
-//	glutPostRedisplay();
+	//  uncomment this if not using an idle or refresh func
+	//	glutPostRedisplay();
 }
 
 // ============================================================================
@@ -2224,9 +2227,11 @@ void buildScene() {
 	//Texture Object definition
 	renderer.TexObjArray.texture2D_Loader("assets/lightwood.tga");
 	renderer.TexObjArray.texture2D_Loader("assets/wood_2.jpg");
+	renderer.TexObjArray.texture2D_Loader("assets/wood_2_normal.jpg");
 	renderer.TexObjArray.texture2D_Loader("assets/stone.tga");
 	renderer.TexObjArray.texture2D_Loader("assets/checker.png");
 	renderer.TexObjArray.texture2D_Loader("assets/road.jpg");
+	renderer.TexObjArray.texture2D_Loader("assets/road_normal.jpg");
 
 	//Scene geometry with triangle meshes
 
@@ -2532,11 +2537,11 @@ void buildScene() {
 
 
 	//The truetypeInit creates a texture object in TexObjArray for storing the fontAtlasTexture
-	
+
 	fontLoaded = renderer.truetypeInit(fontPathFile);
 	if (!fontLoaded)
 		cerr << "Fonts not loaded\n";
-	else 
+	else
 		cerr << "Fonts loaded\n";
 
 	printf("\nNumber of Texture Objects is %d\n\n", renderer.TexObjArray.getNumTextureObjects());
@@ -2549,23 +2554,23 @@ void buildScene() {
 	loadSpider();
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
 
 	srand((unsigned int)time(NULL));
 
-//  GLUT initialization
+	//  GLUT initialization
 	glutInit(&argc, argv);
-	glutInitDisplayMode(GLUT_DEPTH|GLUT_DOUBLE|GLUT_RGBA|GLUT_MULTISAMPLE|GLUT_STENCIL);
+	glutInitDisplayMode(GLUT_DEPTH | GLUT_DOUBLE | GLUT_RGBA | GLUT_MULTISAMPLE | GLUT_STENCIL);
 
-	glutInitContextVersion (4, 3);
-	glutInitContextProfile (GLUT_CORE_PROFILE );
+	glutInitContextVersion(4, 3);
+	glutInitContextProfile(GLUT_CORE_PROFILE);
 	glutInitContextFlags(GLUT_FORWARD_COMPATIBLE | GLUT_DEBUG);
 
-	glutInitWindowPosition(100,100);
+	glutInitWindowPosition(100, 100);
 	glutInitWindowSize(WinX, WinY);
 	WindowHandle = glutCreateWindow(CAPTION);
 
-//  Callback Registration
+	//  Callback Registration
 	glutDisplayFunc(renderSim);
 	glutReshapeFunc(changeSize);
 
@@ -2573,19 +2578,19 @@ int main(int argc, char **argv) {
 	//glutIdleFunc(renderSim);  // Use it for maximum performance
 	glutTimerFunc(0, refresh, 0);    //use it to to get 60 FPS whatever
 
-//	Mouse and Keyboard Callbacks
+	//	Mouse and Keyboard Callbacks
 	glutKeyboardFunc(processKeys);
 	glutKeyboardUpFunc(processKeyUp);
 	glutIgnoreKeyRepeat(1); // ignora o repeat key do windows
 	glutMouseFunc(processMouseButtons);
 	glutMotionFunc(processMouseMotion);
-	glutMouseWheelFunc ( mouseWheel ) ;
-	
+	glutMouseWheelFunc(mouseWheel);
 
-//	return from main loop
+
+	//	return from main loop
 	glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE, GLUT_ACTION_GLUTMAINLOOP_RETURNS);
 
-//	Init GLEW
+	//	Init GLEW
 	glewExperimental = GL_TRUE;
 	glewInit();
 
@@ -2596,10 +2601,10 @@ int main(int argc, char **argv) {
 	glClearStencil(0);
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
-	printf ("Vendor: %s\n", glGetString (GL_VENDOR));
-	printf ("Renderer: %s\n", glGetString (GL_RENDERER));
-	printf ("Version: %s\n", glGetString (GL_VERSION));
-	printf ("GLSL: %s\n", glGetString (GL_SHADING_LANGUAGE_VERSION));
+	printf("Vendor: %s\n", glGetString(GL_VENDOR));
+	printf("Renderer: %s\n", glGetString(GL_RENDERER));
+	printf("Version: %s\n", glGetString(GL_VERSION));
+	printf("GLSL: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
 
 	/* Initialization of DevIL */
 	if (ilGetInteger(IL_VERSION_NUM) < IL_VERSION)
@@ -2613,9 +2618,9 @@ int main(int argc, char **argv) {
 	resetButters();
 	resetCheerios();
 
-	if(!renderer.setRenderMeshesShaderProg("shaders/mesh.vert", "shaders/mesh.frag") || 
+	if (!renderer.setRenderMeshesShaderProg("shaders/mesh.vert", "shaders/mesh.frag") ||
 		!renderer.setRenderTextShaderProg("shaders/ttf.vert", "shaders/ttf.frag"))
-	return(1);
+		return(1);
 
 	if (!rendererSpider.setRenderMeshesShaderProg("shaders/assimp.vert", "shaders/assimp.frag"))
 		return(1);

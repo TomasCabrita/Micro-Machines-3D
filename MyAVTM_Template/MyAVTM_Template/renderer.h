@@ -84,8 +84,8 @@ private:
   GLint model_loc, view_loc, pvm_loc, vm_loc, normal_loc, texMode_loc;
   GLint tex_loc[MAX_TEXTURES];
 
-  GLboolean normalMap_loc;
-  GLboolean specularMap_loc;
+  GLint normalMap_loc;
+  GLint specularMap_loc;
   GLint diffMapCount_loc;
 
   // Render font GLSL program variable locations and VAO

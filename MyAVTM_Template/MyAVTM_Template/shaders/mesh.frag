@@ -13,6 +13,7 @@ in Data {
 	vec3 normal;
 	vec3 eye;
 	vec2 tex_coord;
+	mat3 tbn;
 } DataIn;
 
 uniform Materials mat;
@@ -22,8 +23,12 @@ uniform sampler2D texmap1;
 uniform sampler2D texmap2;
 uniform sampler2D texmap3;
 uniform sampler2D texmap4;
+uniform sampler2D texmap5;
+uniform sampler2D texmap6;
 
 uniform int texMode;
+
+uniform bool normalMap;
 
 // Controls for the lights
 uniform bool dayMode;
@@ -54,7 +59,18 @@ void main() {
 
 	float att = 0.0;
 
-	vec3 n = normalize(DataIn.normal);
+	vec3 n;
+	vec3 texNormal;
+	if (normalMap) {
+		if (texMode == 4) {
+			texNormal = texture(texmap6, DataIn.tex_coord).rgb * 2.0 - 1.0; // Road normal map
+		} else {
+			texNormal = texture(texmap2, DataIn.tex_coord).rgb * 2.0 - 1.0; // Wood normal map
+		}
+		n = normalize(DataIn.tbn * texNormal);
+	} else {
+		n = normalize(DataIn.normal);
+	}
 	vec3 e = normalize(-DataIn.eye);
 	vec3 sd = normalize(headlightDir);
 
@@ -130,12 +146,12 @@ void main() {
 	}
 	else if (texMode == 2) // Diffuse color is replaced by texel color
 	{
-		texel = texture(texmap2, DataIn.tex_coord);  // texel from stone.tga
+		texel = texture(texmap3, DataIn.tex_coord);  // texel from stone.tga
 		colorOut = vec4(max(totalIntensity * texel + totalSpecular, 0.07 * texel).rgb, 1.0);
 	}
 	else if (texMode == 4) // Diffuse color is replaced by texel color
 	{
-		texel = texture(texmap4, DataIn.tex_coord);  // texel from road.jpg
+		texel = texture(texmap5, DataIn.tex_coord);  // texel from road.jpg
 		colorOut = vec4(max(totalIntensity * texel + totalSpecular, 0.07 * texel).rgb, 1.0);
 	}
 	else // Multitexturing

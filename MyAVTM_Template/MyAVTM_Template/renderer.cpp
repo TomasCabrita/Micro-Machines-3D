@@ -159,6 +159,8 @@ bool Renderer::setRenderMeshesShaderProg(const std::string& vertShaderPath, cons
     tex_loc[2] = glGetUniformLocation(program, "texmap2");
 	tex_loc[3] = glGetUniformLocation(program, "texmap3");
 	tex_loc[4] = glGetUniformLocation(program, "texmap4");
+	tex_loc[5] = glGetUniformLocation(program, "texmap5");
+	tex_loc[6] = glGetUniformLocation(program, "texmap6");
 
     dayMode_loc = glGetUniformLocation(program, "dayMode");
     candleMode_loc = glGetUniformLocation(program, "candleMode");
@@ -244,6 +246,8 @@ void Renderer::setTexUnit(int tuId, int texObjArray_pos) {
 
 void Renderer::renderMesh(const dataMesh& data) {
     GLint loc;
+
+    glUniform1i(normalMap_loc, data.normalMapKey);
 
     // be aware to activate previously the Model shader program
     glUniformMatrix4fv(vm_loc, 1, GL_FALSE, data.vm);
