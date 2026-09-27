@@ -14,6 +14,7 @@ in Data {
 	vec3 eye;
 	vec2 tex_coord;
 	mat3 tbn;
+	vec3 skyboxTexCoord;
 } DataIn;
 
 uniform Materials mat;
@@ -25,6 +26,8 @@ uniform sampler2D texmap3;
 uniform sampler2D texmap4;
 uniform sampler2D texmap5;
 uniform sampler2D texmap6;
+
+uniform samplerCube cubeMap;
 
 uniform int texMode;
 
@@ -153,6 +156,10 @@ void main() {
 	{
 		texel = texture(texmap5, DataIn.tex_coord);  // texel from road.jpg
 		colorOut = vec4(max(totalIntensity * texel + totalSpecular, 0.07 * texel).rgb, 1.0);
+	}
+	else if (texMode == 5) // Skybox
+	{
+		colorOut = texture(cubeMap, DataIn.skyboxTexCoord);
 	}
 	else // Multitexturing
 	{
