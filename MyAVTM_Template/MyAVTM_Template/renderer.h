@@ -67,6 +67,8 @@ public:
 
   float textWidth(const std::string& str, float size = 1.0f);
 
+  void setCubeTexUnit(int tuId, int texObjArray_pos);
+
   // Vector with meshes
   std::vector<struct MyMesh> myMeshes;
 

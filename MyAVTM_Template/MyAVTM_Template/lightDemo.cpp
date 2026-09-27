@@ -155,6 +155,7 @@ const int BUTTER_BLUE_MESH   = 13; // blue part of the butter package
 const int ORANGE_MESH		 = 14; // orange
 const int ORANGE_BLACK_MESH  = 15; // black part of the orange
 const int CHEERIO_MESH		 = 16; // cheerio
+const int SKYBOX_MESH        = 17; // skybox
 
 // ============================================================================
 // DATA STRUCTURES
@@ -1745,10 +1746,44 @@ void renderSim(void) {
 	renderer.setTexUnit(2, 2); // stone.tga
 	renderer.setTexUnit(3, 3); // checker.png
 	renderer.setTexUnit(4, 4); // road.jpg
+	renderer.setCubeTexUnit(5, 5); // skybox
 
 	// Reset the model matrix and set up the camera based on the table dimensions
 	mu.loadIdentity(gmu::MODEL);
 	setupCamera(tableWidth, tableDepth, tablePosY);
+
+	// Render Sky Box
+
+	//it won't write anything to the zbuffer; all subsequently drawn scenery to be in front of the sky box. 
+	glDepthMask(GL_FALSE); //podia fazer o disable do depth teste
+	glFrontFace(GL_CW); // set clockwise vertex order to mean the front => o mesmo que fazer glCullFace(GL_FRONT);
+
+	mu.pushMatrix(gmu::MODEL);
+	mu.scale(gmu::MODEL, 1000.0f, 1000.0f, 1000.0f);
+	mu.translate(gmu::MODEL, -0.5f, -0.5f, -0.5f); //centrar o cubo na origem
+
+	mu.pushMatrix(gmu::VIEW);
+	float* viewMatrix = mu.get(gmu::VIEW);
+	viewMatrix[12] = 0.0f; //cancel the translation of the camera, so the sky box is always centered at the camera position
+	viewMatrix[13] = 0.0f;
+	viewMatrix[14] = 0.0f;
+
+	mu.computeDerivedMatrix(gmu::PROJ_VIEW_MODEL);
+	mu.computeNormalMatrix3x3();
+
+	dataMesh data;
+	data.meshID = SKYBOX_MESH; //cube mesh
+	data.texMode = 5; //skyBox texture mapping
+
+	data.vm = mu.get(gmu::VIEW_MODEL);
+	data.pvm = mu.get(gmu::PROJ_VIEW_MODEL);
+	data.normal = mu.getNormalMatrix();
+	renderer.renderMesh(data);
+	mu.popMatrix(gmu::VIEW);
+	mu.popMatrix(gmu::MODEL);
+
+	glFrontFace(GL_CCW); // restore counter clockwise vertex order to mean the front => o mesmo que fazer glCullFace(GL_BACK);
+	glDepthMask(GL_TRUE);
 
 	// Set directional light mode (day/night) and transform the light direction to eye space
 	float dirEye[3];
@@ -2228,6 +2263,17 @@ void buildScene() {
 	renderer.TexObjArray.texture2D_Loader("assets/checker.png");
 	renderer.TexObjArray.texture2D_Loader("assets/road.jpg");
 
+	// Load the cube map textures for the skybox
+	const char* filenames[] = {
+		"assets/skybox/posx.jpg",
+		"assets/skybox/negx.jpg",
+		"assets/skybox/posy.jpg",
+		"assets/skybox/negy.jpg",
+		"assets/skybox/posz.jpg",
+		"assets/skybox/negz.jpg"
+	};
+	renderer.TexObjArray.textureCubeMap_Loader(filenames);
+
 	//Scene geometry with triangle meshes
 
 	MyMesh amesh;
@@ -2468,6 +2514,23 @@ void buildScene() {
 	amesh.mat.texCount = texcount;
 	renderer.myMeshes.push_back(amesh);
 
+	// create geometry and VAO for the skybox (17)
+	float ambSkybox[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+	float diffSkybox[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+	float specSkybox[] = { 0.0f, 0.0f, 0.0f, 1.0f };
+
+	amesh = createCube();
+
+	memcpy(amesh.mat.ambient, ambSkybox, 4 * sizeof(float));
+	memcpy(amesh.mat.diffuse, diffSkybox, 4 * sizeof(float));
+	memcpy(amesh.mat.specular, specSkybox, 4 * sizeof(float));
+	memcpy(amesh.mat.emissive, emissive, 4 * sizeof(float));
+
+	amesh.mat.shininess = 0.0f;
+	amesh.mat.texCount = texcount;
+
+	renderer.myMeshes.push_back(amesh);
+
 	// create geometry and VAO of the cube
 	amesh = createCube();
 	memcpy(amesh.mat.ambient, amb1, 4 * sizeof(float));
@@ -2593,6 +2656,7 @@ int main(int argc, char **argv) {
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_CULL_FACE);
 	glEnable(GL_MULTISAMPLE);
+	glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 	glClearStencil(0);
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 

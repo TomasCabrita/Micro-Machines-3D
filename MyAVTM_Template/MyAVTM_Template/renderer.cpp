@@ -159,6 +159,18 @@ bool Renderer::setRenderMeshesShaderProg(const std::string& vertShaderPath, cons
     tex_loc[2] = glGetUniformLocation(program, "texmap2");
 	tex_loc[3] = glGetUniformLocation(program, "texmap3");
 	tex_loc[4] = glGetUniformLocation(program, "texmap4");
+	//skybox cube map texture
+    tex_loc[5] = glGetUniformLocation(program, "cubeMap");
+
+    // Associate each sampler with a different texture unit
+    glUseProgram(program);
+
+    glUniform1i(tex_loc[0], 0);
+    glUniform1i(tex_loc[1], 1);
+    glUniform1i(tex_loc[2], 2);
+    glUniform1i(tex_loc[3], 3);
+    glUniform1i(tex_loc[4], 4);
+    glUniform1i(tex_loc[5], 5);
 
     dayMode_loc = glGetUniformLocation(program, "dayMode");
     candleMode_loc = glGetUniformLocation(program, "candleMode");
@@ -239,6 +251,12 @@ void Renderer::setFogMode(bool fogMode) {
 void Renderer::setTexUnit(int tuId, int texObjArray_pos) {
     glActiveTexture(GL_TEXTURE0 + tuId);
     glBindTexture(GL_TEXTURE_2D, TexObjArray.getTextureId(texObjArray_pos));
+    glUniform1i(tex_loc[tuId], tuId);
+}
+
+void Renderer::setCubeTexUnit(int tuId, int texObjArray_pos) {
+    glActiveTexture(GL_TEXTURE0 + tuId);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, TexObjArray.getTextureId(texObjArray_pos));
     glUniform1i(tex_loc[tuId], tuId);
 }
 

@@ -12,15 +12,20 @@ in vec4 normal;    //por causa do gerador de geometria
 in vec4 texCoord;
 
 out Data {
-	vec3 normal;
-	vec3 eye;
-	vec2 tex_coord;
+    vec3 normal;
+    vec3 eye;
+    vec2 tex_coord;
+    vec3 skyboxTexCoord;
 } DataOut;
 
 void main () {
-	DataOut.normal = normalize(m_normal * normal.xyz);
-	DataOut.eye = (m_viewModel * position).xyz;
-	DataOut.tex_coord = texCoord.st;
 
-	gl_Position = m_pvm * position;	
+    vec3 dir = position.xyz - vec3(0.5);
+    DataOut.skyboxTexCoord = dir;
+
+    DataOut.normal = normalize(m_normal * normal.xyz);
+    DataOut.eye = (m_viewModel * position).xyz;
+    DataOut.tex_coord = texCoord.st;
+
+    gl_Position = m_pvm * position;
 }
