@@ -186,6 +186,7 @@ bool Renderer::setRenderMeshesShaderProg(const std::string& vertShaderPath, cons
     spotCosCutOff_loc = glGetUniformLocation(program, "spotCosCutOff");
     spotExp_loc = glGetUniformLocation(program, "spotExp");
 	fogMode_loc = glGetUniformLocation(program, "fogMode");
+	shadowMode_loc = glGetUniformLocation(program, "shadowMode");
 
     return(shader.isProgramLinked() && shader.isProgramValid());
 }
@@ -250,6 +251,10 @@ void Renderer::setSpotLightMode(bool headlightMode, float position[2][4], float 
 
 void Renderer::setFogMode(bool fogMode) {
     glUniform1i(fogMode_loc, fogMode ? 1 : 0);
+}
+
+void Renderer::setShadowMode(bool shadowMode) {
+	glUniform1i(shadowMode_loc, shadowMode ? 1 : 0);
 }
 
 void Renderer::setTexUnit(int tuId, int texObjArray_pos) {

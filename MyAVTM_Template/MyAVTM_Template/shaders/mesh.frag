@@ -33,6 +33,9 @@ uniform int texMode;
 
 uniform bool normalMap;
 
+uniform bool shadowMode;
+uniform vec4 shadowColor = vec4(0.0, 0.0, 0.0, 1.0); // Black shadow color
+
 // Controls for the lights
 uniform bool dayMode;
 uniform bool candleMode;
@@ -51,6 +54,11 @@ uniform vec4 fogColor = vec4(0.5, 0.5, 0.5, 1.0); // Gray fog color
 out vec4 colorOut;
 
 void main() {
+	if (shadowMode) {
+		colorOut = shadowColor;
+		return;
+	}
+
 	vec4 texel, texel1;
 
 	vec4 spec = vec4(0.0);

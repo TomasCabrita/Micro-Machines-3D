@@ -9,7 +9,7 @@
 // The code comes with no warranties, use it at your own risk.
 // You may use it, or parts of it, wherever you want.
 // 
-// Author: Jo�o Madeiras Pereira
+// Author: João Madeiras Pereira
 //
 
 #include <math.h>
@@ -136,6 +136,8 @@ float spotEx = 8.0f;
 
 // Fog
 bool fogMode = true;
+
+const float SHADOW_PLANE_LIFT = 0.1f; // Lift the shadow plane slightly so that it can be seen on the road and table surfaces
 
 // Constants for mesh IDs
 const int TABLE_MESH		 = 0; // table
@@ -292,7 +294,6 @@ const float candlesXZ[NUM_CANDLES][2] = {
 	{ 20.5f,  -19.0f },
 	{ 55.5f,  -41.0f }
 };
-
 
 // Cheerios structure
 
@@ -1099,7 +1100,6 @@ void updateCheerios(float deltaTime, float tableWidth, float tableDepth) {
 	}
 }
 
-
 // ============================================================================
 // GAME LOGIC & CAR DYNAMICS
 // ============================================================================
@@ -1403,7 +1403,6 @@ void drawSpider(float x, float y, float z, float scale) {
 	renderer.activateRenderMeshesShaderProg();
 }
 
-/// ::::::::::::::::::::::::::::::::::::::::::::::::COLISION FUNCIONS:::::::::::::::::::::::::::::::::::::::::::::::::://///
 // ============================================================================
 // COLLISION DETECTION SYSTEM
 // ============================================================================
@@ -1573,7 +1572,6 @@ void checkCollisions() {
 		}
 	}
 }
-
 
 // ============================================================================
 // CAMERA CONTROLS & HUD RENDERING
@@ -1908,6 +1906,72 @@ void drawPlanarReflection(float tableTopY, float cheerioPosY, float candleBasePo
 
 }
 
+// Matrix to project shadows onto a plane from a light source
+// Necessary for the shadow of the car and other objects on the table
+void computeShadowMatrix(const float plane[4], const float light[4], float shadowMat[16]) {
+	float dot = plane[0] * light[0] + plane[1] * light[1] + plane[2] * light[2] + plane[3] * light[3]; // Dot product of plane and light
+
+	// Column 0 - X axis projection
+	shadowMat[0] = dot - light[0] * plane[0];
+	shadowMat[4] = -light[0] * plane[1];
+	shadowMat[8] = -light[0] * plane[2];
+	shadowMat[12] = -light[0] * plane[3];
+	// Column 1 - Y axis projection
+	shadowMat[1] = -light[1] * plane[0];
+	shadowMat[5] = dot - light[1] * plane[1];
+	shadowMat[9] = -light[1] * plane[2];
+	shadowMat[13] = -light[1] * plane[3];
+	// Column 2 - Z axis projection
+	shadowMat[2] = -light[2] * plane[0];
+	shadowMat[6] = -light[2] * plane[1];
+	shadowMat[10] = dot - light[2] * plane[2];
+	shadowMat[14] = -light[2] * plane[3];
+	// Column 3 - W axis projection
+	shadowMat[3] = -light[3] * plane[0];
+	shadowMat[7] = -light[3] * plane[1];
+	shadowMat[11] = -light[3] * plane[2];
+	shadowMat[15] = dot - light[3] * plane[3];
+}
+
+// Create a stencil mask for the table to limit where shadows are drawn
+void createTableShadowMask(float tableWidth, float tableDepth, float tableTopY) {
+	glEnable(GL_STENCIL_TEST); // Enable stencil testing
+	glStencilMask(0xFF); // Allow writing to all bits of the stencil buffer
+	glStencilFunc(GL_ALWAYS, 1, 0xFF); // Always pass the stencil test and set the reference value to 1
+	glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE); // Replace the stencil value with the reference value (1) when the depth test passes
+
+	glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+	glDepthMask(GL_FALSE);
+
+	drawObject(TABLE_MESH, 0.0f, tableTopY, 0.0f, tableWidth, 0.01f, tableDepth); // Draw a thin layer at the top of the table to create the stencil mask
+
+	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+	glDepthMask(GL_TRUE);
+}
+
+// Draw planar shadows of objects onto the table using the stencil buffer and shadow matrix
+void drawPlanarShadows(float tableWidth, float tableDepth, float tableTopY,
+	float cheerioPosY, float candleBasePosY, float candleWickPosY) {
+	float shadowPlaneY = tableTopY + SHADOW_PLANE_LIFT;
+	float plane[4] = { 0.0f, 1.0f, 0.0f, -shadowPlaneY };
+	float light[4] = { -lightDir[0], -lightDir[1], -lightDir[2], 0.0f };
+	float shadowMat[16];
+
+	computeShadowMatrix(plane, light, shadowMat);
+	createTableShadowMask(tableWidth, tableDepth, shadowPlaneY);
+
+	glStencilFunc(GL_EQUAL, 1, 0xFF); // Only draw where the stencil value is 1 (the table area)
+	glStencilOp(GL_KEEP, GL_KEEP, GL_INCR); // Increment the stencil value to avoid drawing shadows multiple times in the same area
+	glStencilMask(0xFF); // Allow writing to all bits of the stencil buffer
+
+	mu.pushMatrix(gmu::MODEL);
+	mu.multMatrix(gmu::MODEL, const_cast<float*>(shadowMat));
+	renderer.setShadowMode(true);
+	drawReflectableObjects(cheerioPosY, candleBasePosY, candleWickPosY); // Draw the shadows of the objects onto the table using the shadow matrix
+	renderer.setShadowMode(false);
+	mu.popMatrix(gmu::MODEL);
+}
+
 // ============================================================================
 // MAIN SIMULATION LOOP
 // ============================================================================
@@ -2170,6 +2234,11 @@ void renderSim(void) {
 
 	// Draw the car
 	drawCar(carBarbie);
+
+	if (dayMode) {
+		drawPlanarShadows(tableWidth, tableDepth, tableTopY, cheerioPosY, candleBasePosY, candleWickPosY);
+	}
+
 	drawHUD();
 	glutSwapBuffers();
 }
