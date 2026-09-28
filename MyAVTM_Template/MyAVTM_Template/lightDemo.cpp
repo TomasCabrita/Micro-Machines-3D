@@ -1835,7 +1835,7 @@ void drawHUD() {
 }
 
 // desenhar exatamente a mesma coisa, mas na reflex�o
-void drawReflectableObjects(float cheerioPosY, float candleBasePosY, float candleWickPosY) {
+void drawReflectableObjects(float cheerioPosY, float candleBasePosY, float candleWickPosY, bool withCar = true) {
 
 	// Cheerios (os que caíram não reflete)
 	for (const auto& cheerio : cheerioInstances) {
@@ -1891,7 +1891,10 @@ void drawReflectableObjects(float cheerioPosY, float candleBasePosY, float candl
 	}
 
 	// Carro
-	drawCar(carBarbie);
+	if (withCar) {
+		drawCar(carBarbie);
+	}
+
 }
 
 void createTableReflectionMask(float tableWidth, float tableDepth, float tableTopY) {
@@ -2001,6 +2004,132 @@ void drawPlanarShadows(float tableWidth, float tableDepth, float tableTopY,
 	drawReflectableObjects(cheerioPosY, candleBasePosY, candleWickPosY); // Draw the shadows of the objects onto the table using the shadow matrix
 	renderer.setShadowMode(false);
 	mu.popMatrix(gmu::MODEL);
+}
+
+const bool REAR_VIEW_ONLY_REVERSING = true;
+// Side mirror glass
+const float MIRROR_Z = 1.103f; // reflecting faces the back of the car
+
+static void drawSideMirrorGlass() {
+	mu.pushMatrix(gmu::MODEL);
+	mu.translate(gmu::MODEL, carBarbie.x, carBarbie.y, carBarbie.z);
+	mu.rotate(gmu::MODEL, carBarbie.angle, 0.0f, 1.0f, 0.0f);
+	carBox(carMesh.mirror, 2.45f, 2.02f, 1.113f, 0.30f, 0.20f, 0.02f);
+	carBox(carMesh.mirror, -2.45f, 2.02f, 1.113f, 0.30f, 0.20f, 0.02f);
+	mu.popMatrix(gmu::MODEL);
+}
+
+// Rear-view mirror (top centre of the window)
+static void rearViewRect(float& x, float& y, float& w, float& h) {
+	w = 0.35f * WinX;
+	h = w / 3.5f;
+	x = 0.5f * (WinX - w);
+	y = WinY - h - 10.0f;
+}
+
+static void drawRearViewShape() {
+	float x, y, w, h;
+	rearViewRect(x, y, w, h);
+	mu.pushMatrix(gmu::MODEL);      mu.loadIdentity(gmu::MODEL);
+	mu.pushMatrix(gmu::VIEW);       mu.loadIdentity(gmu::VIEW);
+	mu.pushMatrix(gmu::PROJECTION); mu.loadIdentity(gmu::PROJECTION);
+	mu.ortho(0.0f, (float)WinX, 0.0f, (float)WinY, -1.0f, 1.0f); // coordinates
+	drawObject(carMesh.trim, x + 0.5f * w, y + 0.5f * h, 0.0f, w, h, 1.0f, 0.0f, 0);
+	mu.popMatrix(gmu::PROJECTION);
+	mu.popMatrix(gmu::VIEW);
+	mu.popMatrix(gmu::MODEL);
+}
+
+// Marks the shape and background colour and depth = far and draw
+static void markMirror(int bit, void (*drawShape)(), bool respectDepth) {
+	glStencilMask(bit);
+	glStencilFunc(GL_ALWAYS, bit, bit);
+	glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+	glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+	glDepthMask(GL_FALSE);
+	if (!respectDepth) glDisable(GL_DEPTH_TEST);
+	drawShape();
+	glEnable(GL_DEPTH_TEST);
+
+	glStencilMask(0x00);
+	glStencilFunc(GL_EQUAL, bit, bit);
+	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+	glDepthMask(GL_TRUE);
+	glDepthFunc(GL_ALWAYS);
+	glDepthRange(1.0, 1.0); // everything drawn now gets depth = far
+	glEnable(GL_BLEND);
+	glBlendColor(0.55f, 0.70f, 0.85f, 1.0f); // mirror background (sky)
+	glBlendFunc(GL_CONSTANT_COLOR, GL_ZERO);
+	drawShape();
+	glDisable(GL_BLEND);
+	glDepthRange(0.0, 1.0);
+	glDepthFunc(GL_LESS);
+}
+
+void drawMirrors(float tablePosY, float cheerioPosY, float candleBasePosY, float candleWickPosY) {
+	// The reflection and the shadows start from zero
+	glEnable(GL_STENCIL_TEST);
+	glStencilMask(0xFF);
+	glClear(GL_STENCIL_BUFFER_BIT);
+
+	if (!gameOver && !carFalling) {
+
+		// planar reflection (car coordinates z = MIRROR_Z)
+		if (CameraMode == 3) {
+			markMirror(0x04, drawSideMirrorGlass, true);
+
+			glDisable(GL_CULL_FACE); // the reflection inverts the faces
+			mu.pushMatrix(gmu::MODEL);
+			mu.translate(gmu::MODEL, carBarbie.x, carBarbie.y, carBarbie.z);
+			mu.rotate(gmu::MODEL, carBarbie.angle, 0.0f, 1.0f, 0.0f);
+			mu.translate(gmu::MODEL, 0.0f, 0.0f, MIRROR_Z);
+			mu.scale(gmu::MODEL, 1.0f, 1.0f, -1.0f); // z: -z
+			mu.translate(gmu::MODEL, 0.0f, 0.0f, -MIRROR_Z);
+			mu.rotate(gmu::MODEL, -carBarbie.angle, 0.0f, 1.0f, 0.0f);
+			mu.translate(gmu::MODEL, -carBarbie.x, -carBarbie.y, -carBarbie.z);
+			drawObject(TABLE_MESH, 0.0f, tablePosY, 0.0f, 175.0f, 1.0f, 175.0f, 0.0f, 3, true);
+			drawReflectableObjects(cheerioPosY, candleBasePosY, candleWickPosY, false);
+			mu.popMatrix(gmu::MODEL);
+			glEnable(GL_CULL_FACE);
+		}
+
+		// REAR-VIEW CAM
+		bool reversing = carBarbie.speed < -0.01f || (keyTras && !keyFrente && carBarbie.speed <= 0.0f);
+		if (reversing || !REAR_VIEW_ONLY_REVERSING) {
+			markMirror(0x02, drawRearViewShape, false);
+
+			float x, y, w, h;
+			rearViewRect(x, y, w, h);
+			glViewport((int)x, (int)y, (int)w, (int)h); // the whole rear image fits in the mirror
+			mu.pushMatrix(gmu::VIEW);
+			mu.pushMatrix(gmu::PROJECTION);
+			mu.loadIdentity(gmu::VIEW);
+			mu.loadIdentity(gmu::PROJECTION);
+			mu.perspective(40.0f, w / h, 0.1f, 1000.0f);
+
+			float a = carBarbie.angle * 3.14159265f / 180.0f;
+			float bx = -sinf(a), bz = -cosf(a); // backwards direction of the car
+			mu.lookAt(carBarbie.x + 3.8f * bx, carBarbie.y + 3.0f, carBarbie.z + 3.8f * bz,
+				carBarbie.x + 30.0f * bx, carBarbie.y + 1.0f, carBarbie.z + 30.0f * bz,
+				0.0f, 1.0f, 0.0f);
+
+			// Directional light in the eye space of this camera
+			float dirAux[4], dirEye[3];
+			mu.multMatrixPoint(gmu::VIEW, lightDir, dirAux);
+			dirEye[0] = dirAux[0]; dirEye[1] = dirAux[1]; dirEye[2] = dirAux[2];
+			renderer.setDirLightMode(dayMode, dirEye);
+
+			drawObject(TABLE_MESH, 0.0f, tablePosY, 0.0f, 175.0f, 1.0f, 175.0f, 0.0f, 3, true);
+			drawReflectableObjects(cheerioPosY, candleBasePosY, candleWickPosY, false);
+
+			mu.popMatrix(gmu::PROJECTION);
+			mu.popMatrix(gmu::VIEW);
+			glViewport(0, 0, WinX, WinY);
+		}
+	}
+
+	glStencilMask(0xFF);
+	glDisable(GL_STENCIL_TEST);
 }
 
 // ============================================================================
@@ -2272,6 +2401,7 @@ void renderSim(void) {
 	if (dayMode) {
 		drawPlanarShadows(tableWidth, tableDepth, tableTopY, cheerioPosY, candleBasePosY, candleWickPosY);
 	}
+	drawMirrors(tablePosY, cheerioPosY, candleBasePosY, candleWickPosY);
 
 	drawHUD();
 	glutSwapBuffers();
