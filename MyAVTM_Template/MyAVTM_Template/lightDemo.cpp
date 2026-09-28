@@ -41,6 +41,7 @@
 
 using namespace std;
 
+
 // ============================================================================
 // GLOBAL CONFIGURATION
 // ============================================================================
@@ -48,14 +49,15 @@ using namespace std;
 #define CAPTION "AVTM 2026 Micro Machines 3D"
 #define FPS 60
 
+// Directory buffer and Assimp importer for the spider model
 char model_dir[200];
 Assimp::Importer importerSpider;
 const aiScene* sceneSpider = nullptr;
 
 float spiderScaleFactor = 1.0f;
-
 Renderer rendererSpider;
 
+// Window configuration
 int WindowHandle = 0;
 int WinX = 640, WinY = 480;
 float aspectRatio = 640.0f / 480.0f;
@@ -139,7 +141,13 @@ float spotEx = 8.0f;
 // Fog
 bool fogMode = true;
 
-const float SHADOW_PLANE_LIFT = 0.1f; // Lift the shadow plane slightly so that it can be seen on the road and table surfaces
+// Slight vertical offset to prevent Z-fighting when rendering planar shadows over the surface
+const float SHADOW_PLANE_LIFT = 0.1f; 
+
+// Rear view mirror configuration
+const bool REAR_VIEW_ONLY_REVERSING = true;
+// Side mirror glass
+const float MIRROR_Z = 1.103f; // Z offset for the side mirrors
 
 // Constants for mesh IDs
 const int TABLE_MESH		 = 0; // table
@@ -161,11 +169,12 @@ const int ORANGE_BLACK_MESH  = 15; // black part of the orange
 const int CHEERIO_MESH		 = 16; // cheerio
 const int SKYBOX_MESH        = 17; // skybox
 
+
 // ============================================================================
 // DATA STRUCTURES
 // ============================================================================
 
-// Car structure
+// === Car structure ===
 
 struct Car {
 	// World position and orientation
@@ -196,8 +205,10 @@ struct Car {
 
 Car carBarbie;
 
+// Previous car position for collision detection
 float carPrevX = CAR_START_X, carPrevZ = CAR_START_Z;
 
+// Mesh IDs for different parts of the car
 struct CarMeshIDs {
 	int paint, trim, trimCyl, chrome, chromeCyl, rubber;
 	int interior, seat, headlight, taillight, plate, plateBlue;
@@ -206,6 +217,7 @@ struct CarMeshIDs {
 
 CarMeshIDs carMesh;
 
+// Glass piece structure for car windows
 struct GlassPiece {
 	int mesh;
 	bool box;
@@ -225,7 +237,7 @@ const float CAR_RW_BASE = -1.45f, CAR_RW_TOP = -0.65f; // Rear window bounds (z)
 const float CAR_GLASS_X = 2.15f;
 const float CAR_WHEEL_R = 0.80f; // Wheel radius
 
-// Butter structure
+// === Butter structure ===
 
 struct Butter {
 	float x;
@@ -252,6 +264,7 @@ Butter initialButters[] = {
 	{ 60.0f, -60.0f }  // Road 11
 };
 
+// Butter constants for position, size, and physics
 const float BUTTER_MIN_X = -2.0f;
 const float BUTTER_MAX_X = 1.7f;
 const float BUTTER_HALF_Z = 1.0f;
@@ -265,7 +278,7 @@ Butter butters[sizeof(initialButters) / sizeof(initialButters[0])]; // Array to 
 
 const int NUM_BUTTERS = sizeof(butters) / sizeof(butters[0]);
 
-// Orange structure
+// === Orange structure ===
 
 struct Orange {
 	float x;
@@ -286,6 +299,8 @@ Orange oranges[] = {
 
 const int NUM_ORANGES = sizeof(oranges) / sizeof(oranges[0]);
 
+// === Candle structure ===
+
 const int NUM_CANDLES = 6;
 const float CANDLE_RADIUS = 2.0f;
 const float candlesXZ[NUM_CANDLES][2] = {
@@ -297,7 +312,7 @@ const float candlesXZ[NUM_CANDLES][2] = {
 	{ 55.5f,  -41.0f }
 };
 
-// Cheerios structure
+// === Cheerios structure ===
 
 struct CheeriosLine {
 	float x1, z1;
@@ -336,9 +351,8 @@ struct CheerioInstance {
 	float x;
 	float z;
 
-	// cair da mesa quando são empurrados
-	bool falling = false;
-	bool gone = false; // desaparecer dps de sair do campo de visão
+	bool falling = false; // Falling state when knocked off the table
+	bool gone = false; // Flag to cull once completely out of view
 	float y = 0.0f;
 	float vx = 0.0f, vy = 0.0f, vz = 0.0f;
 	float spin = 0.0f;
@@ -348,12 +362,13 @@ vector<CheerioInstance> cheerioInstances; // Vector to store the positions of ch
 
 const int NUM_CHEERIOS_LINES = sizeof(cheeriosLine) / sizeof(cheeriosLine[0]);
 
-// Other structures
+// === Other structures ===
 
 struct AABB {
 	float minX, maxX;
 	float minZ, maxZ;
 };
+
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -394,16 +409,14 @@ void drawCenteredObject(
 	float posX, float posY, float posZ,
 	float scaleX, float scaleY, float scaleZ,
 	float rotX = 0.0f, float rotY = 0.0f, float rotZ = 0.0f,
-	int texMode = 0)
-{
+	int texMode = 0) {
+	
 	mu.pushMatrix(gmu::MODEL);
 
 	mu.translate(gmu::MODEL, posX, posY, posZ);
-
 	mu.rotate(gmu::MODEL, rotX, 1.0f, 0.0f, 0.0f); // Rotate around X-axis
 	mu.rotate(gmu::MODEL, rotY, 0.0f, 1.0f, 0.0f); // Rotate around Y-axis
 	mu.rotate(gmu::MODEL, rotZ, 0.0f, 0.0f, 1.0f); // Rotate around Z-axis
-
 	mu.scale(gmu::MODEL, scaleX, scaleY, scaleZ);
 
 	mu.computeDerivedMatrix(gmu::PROJ_VIEW_MODEL);
@@ -433,8 +446,7 @@ static int addCarMesh(MyMesh m, const float amb[4], const float diff[4], const f
 }
 
 // Build the car meshes with their respective materials and properties
-void buildCarMeshes()
-{
+void buildCarMeshes() {
 	// Pink paint (cilinder, sphere and torus)
 	float paintA[] = { 0.25f, 0.03f, 0.15f, 1.0f };
 	float paintD[] = { 0.95f, 0.20f, 0.60f, 1.0f };
@@ -523,14 +535,14 @@ static void carShape(int mesh, float x, float y, float z, float sx, float sy, fl
 
 // Computes spacial positioning and X rotation for sloped surfaces
 static void slopeParams(float yA, float zA, float yB, float zB,
-	float& yc, float& zc, float& len, float& angDeg)
-{
+	float& yc, float& zc, float& len, float& angDeg) {
 	float dy = yB - yA, dz = zB - zA;
 	yc = 0.5f * (yA + yB);
 	zc = 0.5f * (zA + zB);
 	len = sqrtf(dy * dy + dz * dz);
 	angDeg = atan2f(dz, dy) * 180.0f / 3.14159265f;
 }
+
 
 // ============================================================================
 // CAR DRAWING FUNCTIONS
@@ -769,28 +781,26 @@ void drawCar(const Car& car) {
 	mu.popMatrix(gmu::MODEL);
 }
 
+
 // ============================================================================
 // ENVIRONMENT OBJECTS & GAMEPLAY ENTITIES
 // ============================================================================
 
-void drawButter(const Butter& butter)
-{
+void drawButter(const Butter& butter) {
 	mu.pushMatrix(gmu::MODEL);
 
 	mu.translate(gmu::MODEL, butter.x, BUTTER_BASE_Y, butter.z);
 
-	// abanar se atingido
+	// Apply tilt to the butter upon collision with the car
 	if (butter.tilt > 0.0f) {
 		if (butter.tiltAxis == 0) {
-			// inclina X, roda em Z
+			// Tilt along X axis, rotate around Z axis
 			float px = (butter.tiltSign > 0.0f) ? BUTTER_MAX_X : BUTTER_MIN_X;
 			mu.translate(gmu::MODEL, px, 0.0f, 0.0f);
 			mu.rotate(gmu::MODEL, -butter.tiltSign * butter.tilt, 0.0f, 0.0f, 1.0f);
 			mu.translate(gmu::MODEL, -px, 0.0f, 0.0f);
-		}
-
-		else {
-			// inclina em Z, roda em X
+		} else {
+			// Tilt along Z axis, rotate around X axis
 			float pz = butter.tiltSign * BUTTER_HALF_Z;
 			mu.translate(gmu::MODEL, 0.0f, 0.0f, pz);
 			mu.rotate(gmu::MODEL, butter.tiltSign * butter.tilt, 1.0f, 0.0f, 0.0f);
@@ -803,103 +813,103 @@ void drawButter(const Butter& butter)
 	float yc = 0.5f * BUTTER_HEIGHT;
 
 
-	// Yellow
-	drawObject(
-		BUTTER_YELLOW_MESH,
-		-1.6f, yc, 0.0f,
-		0.8f, height, depth,
-		0.0f, 0
-	);
+	// Yellow block
+	drawObject(BUTTER_YELLOW_MESH, -1.6f, yc, 0.0f, 0.8f, height, depth, 0.0f, 0);
 	
 	// Small beige stripe
-	drawObject(
-		BUTTER_BEIGE_MESH,
-		-0.95f, yc, 0.0f,
-		0.5f, height, depth,
-		0.0f, 0
-	);
+	drawObject(BUTTER_BEIGE_MESH, -0.95f, yc, 0.0f, 0.5f, height, depth, 0.0f, 0);
 
 	// Blue stripe
-	drawObject(
-		BUTTER_BLUE_MESH,
-		-0.25f, yc, 0.0f,
-		0.9f, height, depth,
-		0.0f, 0
-	);
+	drawObject(BUTTER_BLUE_MESH, -0.25f, yc, 0.0f, 0.9f, height, depth, 0.0f, 0);
 
 	// Large beige part
-	drawObject(
-		BUTTER_BEIGE_MESH,
-		0.95f, yc, 0.0f,
-		1.5f, height, depth,
-		0.0f, 0
-	);
+	drawObject(BUTTER_BEIGE_MESH, 0.95f, yc, 0.0f, 1.5f, height, depth, 0.0f, 0);
 
 	mu.popMatrix(gmu::MODEL);
 }
 
 void resetButters() {
-	for (int i = 0; i < NUM_BUTTERS; i++)
-	{
+	for (int i = 0; i < NUM_BUTTERS; i++) {
 		butters[i] = initialButters[i];
 	}
 }
 
-void drawOrange(const Orange& orange)
-{
+// Trigger angular tilt response impulse when vehicle impacts butter block
+void hitButter(Butter& b, int axis, float sign, float impactSpeed) {
+	float impulse = std::min(60.0f + 3.0f * impactSpeed, 260.0f); // Impulse magnitude based on impact speed (degrees per second)
+
+	if (b.tilt < 1.0f) {
+		// Currently resting: start tilting in the direction of the impact
+		b.tiltAxis = axis;
+		b.tiltSign = sign;
+		b.tiltVel = impulse;
+	} else if (b.tiltAxis == axis && b.tiltSign == sign) {
+		// Already tipping along matching axis: apply impulse if incoming hit is stronger
+		b.tiltVel = std::max(b.tiltVel, impulse);
+	}
+}
+
+void updateButters(float deltaTime) {
+	for (int i = 0; i < NUM_BUTTERS; i++) {
+		Butter& b = butters[i];
+
+		// If the butter is already at rest (tilt = 0 and tiltVel = 0), skip the update
+		if (b.tilt <= 0.0f && b.tiltVel <= 0.0f)
+			continue;
+
+		b.tiltVel -= BUTTER_TILT_GRAVITY * deltaTime;
+		b.tilt += b.tiltVel * deltaTime;
+
+		// Limit maximum tipping angle so block doesn't fall fla
+		if (b.tilt >= BUTTER_TILT_MAX) {
+			b.tilt = BUTTER_TILT_MAX;
+			b.tiltVel = 0.0f;
+		}
+		// Bounce effect upon hitting surface
+		if (b.tilt <= 0.0f) {
+			b.tilt = 0.0f;
+			b.tiltVel = -b.tiltVel * BUTTER_BOUNCE;
+			if (b.tiltVel < 20.0f)
+				b.tiltVel = 0.0f;
+		}
+	}
+}
+
+void drawOrange(const Orange& orange) {
 	mu.pushMatrix(gmu::MODEL);
 
 	mu.translate(gmu::MODEL, orange.x, 1.0f, orange.z);
 
-	// Movement in X -> rotation in Z
+	// Horizontal motion along X produces rotation along Z axis
 	if (orange.dirX != 0.0f)
-		mu.rotate(gmu::MODEL, -orange.angle * orange.dirX,
-			0.0f, 0.0f, 1.0f);
+		mu.rotate(gmu::MODEL, -orange.angle * orange.dirX, 0.0f, 0.0f, 1.0f);
 
-	// Movement in Z -> rotation in X
+	// Vertical motion along Z produces rotation along X axis
 	if (orange.dirZ != 0.0f)
-		mu.rotate(gmu::MODEL, orange.angle * orange.dirZ,
-			1.0f, 0.0f, 0.0f);
+		mu.rotate(gmu::MODEL, orange.angle * orange.dirZ, 1.0f, 0.0f, 0.0f);
 
-	// Orange
-	drawCenteredObject(
-		ORANGE_MESH,
-		0.0f, 0.0f, 0.0f,
-		1.5f, 1.5f, 1.5f,
-		0.0f, 0.0f, 0.0f,
-		0
-	);
+	// Orange sphere
+	drawCenteredObject(ORANGE_MESH, 0.0f, 0.0f, 0.0f, 1.5f, 1.5f, 1.5f, 0.0f, 0.0f, 0.0f, 0);
 
 	// Black mesh
-	drawCenteredObject(
-		ORANGE_BLACK_MESH,
-		0.0f, 1.45f, 0.0f,
-		0.18f, 0.18f, 0.18f,
-		0.0f, 0.0f, 0.0f,
-		0
-	);
+	drawCenteredObject(ORANGE_BLACK_MESH, 0.0f, 1.45f, 0.0f, 0.18f, 0.18f, 0.18f, 0.0f, 0.0f, 0.0f, 0);
 
 	mu.popMatrix(gmu::MODEL);
 }
 
-bool orangePathIsFree(const Orange& orange)
-{
-	// Safety margin
-	const float margin = 4.5f;
+// Verification function ensuring randomly generated oranges trajectories do not overlap other objects (butters and candles)
+bool orangePathIsFree(const Orange& orange) {
+	const float margin = 4.5f; // Safety margin
 
-	// Check butters
-	for (int i = 0; i < NUM_BUTTERS; i++)
-	{
+	// Check clearance with butters
+	for (int i = 0; i < NUM_BUTTERS; i++) {
 		// Move horizontally (in X)
-		if (orange.dirX != 0.0f)
-		{
+		if (orange.dirX != 0.0f) {
 			if (fabs(orange.z - butters[i].z) < margin)
 				return false;
 		}
-
 		// Move vertically (in Z)
-		else if (orange.dirZ != 0.0f)
-		{
+		else if (orange.dirZ != 0.0f) {
 			if (fabs(orange.x - butters[i].x) < margin)
 				return false;
 		}
@@ -915,17 +925,13 @@ bool orangePathIsFree(const Orange& orange)
 		{ 55.5f,  -41.0f }
 	};
 
-	// Check candles
-	for (int i = 0; i < 6; i++)
-	{
-		if (orange.dirX != 0.0f)
-		{
+	// Check clearance with candles
+	for (int i = 0; i < 6; i++) {
+		if (orange.dirX != 0.0f) {
 			if (fabs(orange.z - candles[i][1]) < margin)
 				return false;
 		}
-
-		if (orange.dirZ != 0.0f)
-		{
+		if (orange.dirZ != 0.0f) {
 			if (fabs(orange.x - candles[i][0]) < margin)
 				return false;
 		}
@@ -934,42 +940,34 @@ bool orangePathIsFree(const Orange& orange)
 	return true;
 }
 
-void resetOrange(Orange& orange)
-{
-	do
-	{
+// Randomly generate a new position and direction for an orange, ensuring it does not collide with other objects
+void resetOrange(Orange& orange) {
+	do {
 		int side = rand() % 4;
 
-		if (side == 0)
-		{
-			// Left -> right
+		if (side == 0) {
+			// Spawn Left -> Traverse Right
 			orange.x = -87.0f;
 			orange.z = -80.0f + (rand() % 161);
 
 			orange.dirX = 1.0f;
 			orange.dirZ = 0.0f;
-		}
-		else if (side == 1)
-		{
-			// Right -> left
+		} else if (side == 1) {
+			// Spawn Right -> Traverse Left
 			orange.x = 87.0f;
 			orange.z = -80.0f + (rand() % 161);
 
 			orange.dirX = -1.0f;
 			orange.dirZ = 0.0f;
-		}
-		else if (side == 2)
-		{
-			// Top -> bottom
+		} else if (side == 2) {
+			// Spawn Top -> Traverse Bottom
 			orange.x = -80.0f + (rand() % 161);
 			orange.z = 87.0f;
 
 			orange.dirX = 0.0f;
 			orange.dirZ = -1.0f;
-		}
-		else
-		{
-			// Bottom -> top
+		} else {
+			// Spawn Bottom -> Traverse Top
 			orange.x = -80.0f + (rand() % 161);
 			orange.z = -87.0f;
 
@@ -982,10 +980,9 @@ void resetOrange(Orange& orange)
 	orange.angle = 0.0f;
 }
 
-void updateOranges()
-{
-	for (int i = 0; i < NUM_ORANGES; i++)
-	{
+// Update the position and rotation of each orange, and reset if it goes out of bounds
+void updateOranges() {
+	for (int i = 0; i < NUM_ORANGES; i++) {
 		// Speed up the orange over time
 		oranges[i].speed += oranges[i].acceleration;
 
@@ -1001,16 +998,16 @@ void updateOranges()
 
 		// If the orange goes out of bounds, reset its position
 		if (oranges[i].x > 87.0f || oranges[i].x < -87.0f ||
-			oranges[i].z > 87.0f || oranges[i].z < -87.0f)
-		{
+			oranges[i].z > 87.0f || oranges[i].z < -87.0f) {
 			resetOrange(oranges[i]);
 		}
 	}
 }
 
+// Populate the cheerioInstances vector with positions along the defined margins of the road
 void resetCheerios() {
 	cheerioInstances.clear();
-	float spacing = 6.0f;
+	float spacing = 6.0f; // Spacing between instances
 
 	for (int i = 0; i < NUM_CHEERIOS_LINES; i++) {
 		float x1 = cheeriosLine[i].x1;
@@ -1030,65 +1027,23 @@ void resetCheerios() {
 	}
 }
 
-// [NOVO] O carro bateu na manteiga: dá-lhe um "empurrão" angular (não a tira do sítio)
-void hitButter(Butter& b, int axis, float sign, float impactSpeed) {
-	float impulse = std::min(60.0f + 3.0f * impactSpeed, 260.0f); // graus/s: mais rápido = tomba mais
-
-	if (b.tilt < 1.0f) {
-		// Estava assente: começa a tombar para longe do carro
-		b.tiltAxis = axis;
-		b.tiltSign = sign;
-		b.tiltVel = impulse;
-	}
-	else if (b.tiltAxis == axis && b.tiltSign == sign) {
-		// Já estava a tombar para o mesmo lado: só se a nova pancada for mais forte
-		b.tiltVel = std::max(b.tiltVel, impulse);
-	}
-}
-
-// abanar quando vais contra as manteigas
-void updateButters(float deltaTime) {
-	for (int i = 0; i < NUM_BUTTERS; i++) {
-		Butter& b = butters[i];
-		if (b.tilt <= 0.0f && b.tiltVel <= 0.0f)
-			continue;
-
-		b.tiltVel -= BUTTER_TILT_GRAVITY * deltaTime;
-		b.tilt += b.tiltVel * deltaTime;
-
-		// não cai
-		if (b.tilt >= BUTTER_TILT_MAX) {
-			b.tilt = BUTTER_TILT_MAX;
-			b.tiltVel = 0.0f;
-		}
-
-		if (b.tilt <= 0.0f) {
-			b.tilt = 0.0f;
-			b.tiltVel = -b.tiltVel * BUTTER_BOUNCE;
-			if (b.tiltVel < 20.0f)
-				b.tiltVel = 0.0f;
-		}
-	}
-}
-
-// cheerios fora da mesa,caiem e não re spawnam
 void updateCheerios(float deltaTime, float tableWidth, float tableDepth) {
 	for (auto& c : cheerioInstances) {
+		// Verify if the cheerio is already marked as gone
 		if (c.gone)
 			continue;
-
+		// If the cheerio is not falling yet, check if it has gone out of bounds
 		if (!c.falling) {
-			// igual ao carro
+			// Trigger the falling state if the cheerio goes beyond the table boundaries
 			if (fabsf(c.x) > tableWidth * 0.5f || fabsf(c.z) > tableDepth * 0.5f) {
 				c.falling = true;
 				c.vy = 0.0f;
-			}
-			else {
+			} else {
 				continue;
 			}
 		}
 
-		// gravidade + velocidade com que foi empurrado
+		// Gravity + impact momentum velocity step
 		c.vy -= CHEERIO_FALL_GRAVITY * deltaTime;
 		c.y += c.vy * deltaTime;
 		c.x += c.vx * deltaTime;
@@ -1097,16 +1052,18 @@ void updateCheerios(float deltaTime, float tableWidth, float tableDepth) {
 		c.vz *= (1.0f - 0.8f * deltaTime);
 		c.spin += 360.0f * deltaTime;
 
-		if (c.y < -80.0f) // desaparece
+		if (c.y < -80.0f) // Cull cheerio if it falls below a certain threshold
 			c.gone = true;
 	}
 }
+
 
 // ============================================================================
 // GAME LOGIC & CAR DYNAMICS
 // ============================================================================
 
 void startCarFall() {
+	// If the car is already falling, do not start another fall
 	if (carFalling) {
 		return;
 	}
@@ -1119,29 +1076,28 @@ void startCarFall() {
 	carBarbie.fallRoll = 0.0f;
 
 	lives--;
+	// Check if the player has run out of lives
 	if (lives <= 0) {
 		gameOver = true;
 		gameOverTimer = 0.0f;
 	}
 
-	// Guardar dire��o que o carro tinha quando saiu da mesa
+	// Save horizontal direction of the fall based on the car's current angle
 	float angleRad = carBarbie.angle * 3.14159265f / 180.0f;
 	fallDirX = sin(angleRad);
 	fallDirZ = cos(angleRad);
 
-	// Mant�m a velocidade que tinha ao sair
+	// Preserve the horizontal speed of the car at the moment of the fall
 	fallHorizontalSpeed = carBarbie.speed;
 
-	// J� n�o d� para andar com o carro
+	// Stop the car's movement and reset its speed
 	keyFrente = false;
 	keyTras = false;
 	keyDir = false;
 	keyEsq = false;
-
 }
 
 void respawnCar() {
-	// re inicializar tudo
 	carBarbie.x = CAR_START_X;
 	carBarbie.z = CAR_START_Z;
 	carBarbie.angle = CAR_START_ANGLE;
@@ -1163,8 +1119,7 @@ void respawnCar() {
 	previousCarZ = carBarbie.z;
 }
 
-void restartGame()
-{
+void restartGame() {
 	respawnCar();
 	lives = 5;
 	points = 0;
@@ -1174,8 +1129,7 @@ void restartGame()
 	resetButters();
 	resetCheerios();
 
-	for (int i = 0; i < NUM_ORANGES; i++)
-	{
+	for (int i = 0; i < NUM_ORANGES; i++) {
 		resetOrange(oranges[i]);
 	}
 
@@ -1185,7 +1139,7 @@ void restartGame()
 void updateCarFall(float deltaTime) {
 	fallTimer += deltaTime;
 
-	// Gravity
+	// Apply gravity to the car's vertical velocity and update its position
 	fallVelocityY -= FALL_GRAVITY * deltaTime;
 	carBarbie.y += fallVelocityY * deltaTime;
 
@@ -1196,11 +1150,12 @@ void updateCarFall(float deltaTime) {
 	// Lose horizontal speed over time (air resistance)
 	fallHorizontalSpeed *= (1.0f - 0.8f * deltaTime);
 
-	// Kirby fall
+	// Tumble rotation animation
 	float speedFactor = std::min(fabs(fallHorizontalSpeed) / carBarbie.maxSpeed, 1.0f);
 	carBarbie.fallPitch += (220.0f + 180.0f * speedFactor) * deltaTime;
 	carBarbie.fallRoll += (100.0f + 120.0f * speedFactor) * deltaTime;
 
+	// Keep angles within 0-360 degrees
 	if (carBarbie.fallPitch >= 360.0f) {
 		carBarbie.fallPitch -= 360.0f;
 	}
@@ -1213,7 +1168,6 @@ void updateCarFall(float deltaTime) {
 	if (fallTimer >= FALL_RESPAWN_TIME) {
 		respawnCar();
 	}
-
 }
 
 void updateCarMoviment(float tableWidth, float tableDepth, float deltaTime) {
@@ -1230,20 +1184,14 @@ void updateCarMoviment(float tableWidth, float tableDepth, float deltaTime) {
 			if (carBarbie.speed < 0.0f) {
 				carBarbie.speed = 0.0f;
 			}
-
-		}
-
-		else if (carBarbie.speed < 0.0f) {
+		} else if (carBarbie.speed < 0.0f) {
 			carBarbie.speed += brakePower * deltaTime;
 
 			if (carBarbie.speed > 0.0f) {
 				carBarbie.speed = 0.0f;
 			}
 		}
-
-	}
-
-	else if (keyFrente) { // W
+	} else if (keyFrente) { // W
 		// If the car is moving backward: brake
 		if (carBarbie.speed < 0.0f) {
 			carBarbie.speed += brakePower * deltaTime;
@@ -1251,16 +1199,11 @@ void updateCarMoviment(float tableWidth, float tableDepth, float deltaTime) {
 				carBarbie.speed = 0.0f;
 			}
 		}
-
 		// If the car is stopped or moving forward: accelerate
 		else {
 			carBarbie.speed += carBarbie.acceleration * deltaTime;
 		}
-
-	}
-
-	else if (keyTras) { // S
-
+	} else if (keyTras) { // S
 		// If the car is moving forward: brake
 		if (carBarbie.speed > 0.0f) {
 			carBarbie.speed -= brakePower * deltaTime;
@@ -1268,16 +1211,12 @@ void updateCarMoviment(float tableWidth, float tableDepth, float deltaTime) {
 			if (carBarbie.speed < 0.0f) {
 				carBarbie.speed = 0.0f;
 			}
-
 		}
-
 		// If the car is stopped or moving backward: accelerate backward
 		else {
 			carBarbie.speed -= carBarbie.acceleration * deltaTime;
 		}
-
 	}
-
 	// No keys pressed: decelerate to a stop
 	else {
 		if (carBarbie.speed > 0.0f) {
@@ -1286,18 +1225,13 @@ void updateCarMoviment(float tableWidth, float tableDepth, float deltaTime) {
 			if (carBarbie.speed < 0.0f) {
 				carBarbie.speed = 0.0f;
 			}
-
-		}
-
-		else if (carBarbie.speed < 0.0f) {
+		} else if (carBarbie.speed < 0.0f) {
 			carBarbie.speed += deceleration * deltaTime;
 
 			if (carBarbie.speed > 0.0f) {
 				carBarbie.speed = 0.0f;
 			}
-
 		}
-
 	}
 
 	// Maximum speed limit
@@ -1317,7 +1251,6 @@ void updateCarMoviment(float tableWidth, float tableDepth, float deltaTime) {
 	if (keyEsq && !keyDir) {
 		turnDirection = 1.0f;
 	}
-
 	// D: right
 	else if (keyDir && !keyEsq) {
 		turnDirection = -1.0f;
@@ -1346,13 +1279,13 @@ void updateCarMoviment(float tableWidth, float tableDepth, float deltaTime) {
 		carBarbie.angle += 360.0f;
 	}
 
-	// Movement direction: 3D unit vector (speed and acceleration are scalars)
+	// Calculate 3D forward direction unit vector)
 	float angleRad = carBarbie.angle * 3.14159265f / 180.0f;
 	carBarbie.dir[0] = sinf(angleRad);
 	carBarbie.dir[1] = 0.0f;
 	carBarbie.dir[2] = cosf(angleRad);
 
-	// Move
+	// Update vehicle position coordinates
 	carBarbie.x += carBarbie.dir[0] * carBarbie.speed * deltaTime;
 	carBarbie.z += carBarbie.dir[2] * carBarbie.speed * deltaTime;
 	carBarbie.wheelSpin += (carBarbie.speed * deltaTime / CAR_WHEEL_R) * 180.0f / 3.14159265f;
@@ -1364,24 +1297,19 @@ void updateCarMoviment(float tableWidth, float tableDepth, float deltaTime) {
 	if (fabs(carBarbie.x) > (tableWidth * 0.5f) || fabs(carBarbie.z) > (tableDepth * 0.5f)) {
 		startCarFall();
 	}
-
 }
 
 void drawSpider(float x, float y, float z, float scale) {
 	rendererSpider.activateRenderMeshesShaderProg();
 	dataMesh dataSpider;
 
-	for (unsigned int n = 0; n < rendererSpider.myMeshes.size(); ++n)
-	{
+	for (unsigned int n = 0; n < rendererSpider.myMeshes.size(); ++n) {
 		mu.pushMatrix(gmu::MODEL);
 
-		// Transforma��o original da mesh importada
-		mu.multMatrix(
-			gmu::MODEL,
-			rendererSpider.myMeshes[n].transform
-		);
+		// Apply initial transform matrix
+		mu.multMatrix(gmu::MODEL, rendererSpider.myMeshes[n].transform);
 
-		// Posi��o da aranha
+		// Set spider position and scale
 		mu.translate(gmu::MODEL, x, y, z);
 
 		float finalScale = spiderScaleFactor * scale;
@@ -1407,14 +1335,15 @@ void drawSpider(float x, float y, float z, float scale) {
 	renderer.activateRenderMeshesShaderProg();
 }
 
+
 // ============================================================================
 // COLLISION DETECTION SYSTEM
 // ============================================================================
 
 // Get the AABB for the car, butter, orange and cheerio
 AABB getCarAABB(const Car& car) {
-	float a = car.angle * 3.14159265f / 180.0f;
-	float c = fabsf(cosf(a)), s = fabsf(sinf(a));
+	float a = car.angle * 3.14159265f / 180.0f; // Convert angle to radians
+	float c = fabsf(cosf(a)), s = fabsf(sinf(a)); // Calculate the absolute values of cosine and sine of the angle
 	float halfX = 0.5f * (c * car.width + s * car.depth);
 	float halfZ = 0.5f * (s * car.width + c * car.depth);
 	return { car.x - halfX, car.x + halfX, car.z - halfZ, car.z + halfZ };
@@ -1435,19 +1364,18 @@ AABB getCheerioAABB(const CheerioInstance& cheerio) {
 	return { cheerio.x - halfSize, cheerio.x + halfSize, cheerio.z - halfSize, cheerio.z + halfSize };
 }
 
+AABB getCandleAABB(int i) {
+	float x = candlesXZ[i][0], z = candlesXZ[i][1];
+	return { x - CANDLE_RADIUS, x + CANDLE_RADIUS, z - CANDLE_RADIUS, z + CANDLE_RADIUS };
+}
+
 // Axis-Aligned Bounding Box (AABB) collision detection
 bool checkAABBCollision(const AABB& a, const AABB& b) {
 	return (a.minX <= b.maxX && a.maxX >= b.minX) && // horizontal overlap, x
 		(a.minZ <= b.maxZ && a.maxZ >= b.minZ); // vertical overlap, z
 }
 
-// AABB of a candle
-AABB getCandleAABB(int i) {
-	float x = candlesXZ[i][0], z = candlesXZ[i][1];
-	return { x - CANDLE_RADIUS, x + CANDLE_RADIUS, z - CANDLE_RADIUS, z + CANDLE_RADIUS };
-}
-
-// If they touch, push the car back out until it just touches the candle. Returns true on collision.
+// Push the car out of the candle if it is touching it, returns true if the car was pushed
 bool pushCarOutOfCandle(Car& car, float cx, float cz) {
 	float a = car.angle * 3.14159265f / 180.0f;
 	float c = cosf(a), s = sinf(a);
@@ -1459,17 +1387,22 @@ bool pushCarOutOfCandle(Car& car, float cx, float cz) {
 
 	float qx = std::max(-hw, std::min(lx, hw));
 	float qz = std::max(-hd, std::min(lz, hd));
-	float ex = lx - qx, ez = lz - qz; // from the car to the candle
+	float ex = lx - qx, ez = lz - qz; // Penetration vector from the closest point on the car to the candle center
 	float dist = sqrtf(ex * ex + ez * ez);
+
+	// If the distance is greater than or equal to the candle radius, the car is not touching the candle
 	if (dist >= CANDLE_RADIUS)
-		return false; // not touching
+		return false;
 
 	float nx, nz, push;
+	// If the distance is greater than a small threshold, calculate the normal vector and penetration depth
 	if (dist > 0.0001f) {
 		nx = ex / dist;
 		nz = ez / dist;
 		push = CANDLE_RADIUS - dist;
 	}
+	// If distance is near zero, the candle's center is inside the car's bounding box
+	// Resolve collision by pushing along the axis of least penetration
 	else {
 		float px = hw - fabsf(lx), pz = hd - fabsf(lz);
 		if (px < pz) { nx = (lx >= 0.0f) ? 1.0f : -1.0f; nz = 0.0f; push = px + CANDLE_RADIUS; }
@@ -1503,35 +1436,36 @@ void checkCollisions() {
 		}
 	}
 
-	// 2.1 Verify collision with Butters (Car stops and butter don't move)
+	// 2. Butters: the car stops and triggers tilt
 	for (int i = 0; i < NUM_BUTTERS; i++) {
 		AABB b = getButterAABB(butters[i]);
-		carAABB = getCarAABB(carBarbie); // the car may have been pushed back by another butter
+		carAABB = getCarAABB(carBarbie); // Get the updated AABB of the car after its movement
 		if (!checkAABBCollision(carAABB, b))
 			continue;
 
-		// de onde foi colidido
+		// Calculate impact entry direction based on the car's previous position and current position
 		float dx = carPrevX - carBarbie.x, dz = carPrevZ - carBarbie.z;
 		bool wasInX = (carAABB.minX + dx < b.maxX) && (carAABB.maxX + dx > b.minX);
 		bool wasInZ = (carAABB.minZ + dz < b.maxZ) && (carAABB.maxZ + dz > b.minZ);
 
 		bool alongX;
 		if (wasInZ && !wasInX)
-			alongX = true; // Z: X face
+			alongX = true; // Impact along X face
 		else if (wasInX && !wasInZ)
-			alongX = false; // X: Z face
+			alongX = false; // Impact along Z face
 		else
+			// Overlapping in both or neither axis previously; resolve along axis of least penetration
 			alongX = std::min(carAABB.maxX - b.minX, b.maxX - carAABB.minX) <
 			std::min(carAABB.maxZ - b.minZ, b.maxZ - carAABB.minZ);
 
 		const float gap = 0.01f;
 		float sign;
+		// Push the car out of the butter along the axis of impact, and stop its speed
 		if (alongX) {
 			sign = (carPrevX < 0.5f * (b.minX + b.maxX)) ? 1.0f : -1.0f;
 			if (sign > 0.0f) carBarbie.x -= (carAABB.maxX - b.minX) + gap;
 			else             carBarbie.x += (b.maxX - carAABB.minX) + gap;
-		}
-		else {
+		} else {
 			sign = (carPrevZ < 0.5f * (b.minZ + b.maxZ)) ? 1.0f : -1.0f;
 			if (sign > 0.0f) carBarbie.z -= (carAABB.maxZ - b.minZ) + gap;
 			else             carBarbie.z += (b.maxZ - carAABB.minZ) + gap;
@@ -1539,26 +1473,27 @@ void checkCollisions() {
 
 		float impact = fabsf(carBarbie.speed);
 		carBarbie.speed = 0.0f;
+		// Trigger butter tilt if the impact speed is significant
 		if (impact > 2.0f)
 			hitButter(butters[i], alongX ? 0 : 1, sign, impact);
 	}
 
-	//2.2 Candles: they don't move and the car cannot move
+	// 3. Candles: the car stops and is pushed out of the candle
 	for (int i = 0; i < NUM_CANDLES; i++) {
 		carAABB = getCarAABB(carBarbie);
 		if (!checkAABBCollision(carAABB, getCandleAABB(i)))
 			continue; // AABB: first quick test
 		if (pushCarOutOfCandle(carBarbie, candlesXZ[i][0], candlesXZ[i][1]))
-			carBarbie.speed = 0.0f; // the car stops against the candle
+			carBarbie.speed = 0.0f; // Stop car against candle
 	}
 
 
-	// 3. Verify collision with Cheerios (Car stops and pushes the cheerio)
+	// 4. Cheerios: the car stops and pushes the cheerio in the direction of movement
 	carAABB = getCarAABB(carBarbie);
 	float moveSign = (carBarbie.speed >= 0.0f) ? 1.0f : -1.0f;
 	for (auto& cheerio : cheerioInstances) {
 		if (cheerio.falling)
-			continue; // cair
+			continue; // Ignore cheerios that are already falling off the table
 
 		AABB cheerioBox = getCheerioAABB(cheerio);
 		if (checkAABBCollision(carAABB, cheerioBox)) {
@@ -1577,8 +1512,8 @@ void checkCollisions() {
 	}
 }
 
-void verifyCheckpoint()
-{
+// Verify if the car has passed the checkpoint, and update the checkpointPassed flag accordingly
+void verifyCheckpoint() {
 	const float checkpointZ = initialButters[0].z;
 	const float minX = 60.0f;
 	const float maxX = 80.0f;
@@ -1588,18 +1523,18 @@ void verifyCheckpoint()
 	}
 }
 
-void checkStartLine()
-{
+// Verify if the car has crossed the start line after passing the checkpoint, and update the points accordingly
+void checkStartLine() {
 	const float startLineZ = -5.0f;
 	const float minX = 60.0f;
 	const float maxX = 80.0f;
 
-	// Car crossed the start line (only counts if it passed the checkpoint
+	// Award points only if the checkpoint was passed and the car crosses the start line
 	if (checkpointPassed && previousCarZ < startLineZ && carBarbie.z >= startLineZ && carBarbie.x >= minX && carBarbie.x <= maxX) {
 		points++;
 		checkpointPassed = false;
 	}
-	// update the previous Z position of the car for the next frame
+	// Update cached Z coordinate for next frame cross checks
 	previousCarZ = carBarbie.z;
 }
 
@@ -1751,9 +1686,8 @@ void drawHUD() {
 			resetText.pvm = mu.get(gmu::PROJ_VIEW_MODEL);
 			renderer.renderText(resetText);
 		}
-	}
-	else {
-		// LIVES
+	} else {
+		// Render remaining Lives count indicator
 		TextCommand livesText;
 		livesText.str = "Lives: " + std::to_string(lives);
 		livesText.position[0] = 20.0f;
@@ -1770,7 +1704,7 @@ void drawHUD() {
 		renderer.renderText(livesText);
 
 
-		// POINTS
+		// Render current Points counter indicator
 		TextCommand pointsText;
 		pointsText.str = "Points: " + std::to_string(points);
 		pointsText.position[0] = 20.0f;
@@ -1786,9 +1720,8 @@ void drawHUD() {
 
 		renderer.renderText(pointsText);
 
-		// PAUSED
-		if (paused)
-		{
+		// Render PAUSED screen text prompt when game is paused
+		if (paused) {
 			TextCommand pauseText;
 			pauseText.str = "PAUSED";
 			pauseText.size = 1.0f;
@@ -1834,16 +1767,16 @@ void drawHUD() {
 	renderer.activateRenderMeshesShaderProg();
 }
 
-// desenhar exatamente a mesma coisa, mas na reflex�o
+// Draw all objects that are visible in the reflection
 void drawReflectableObjects(float cheerioPosY, float candleBasePosY, float candleWickPosY, bool withCar = true) {
 
-	// Cheerios (os que caíram não reflete)
+	// Render Cheerios (skip items knocked off table surface)
 	for (const auto& cheerio : cheerioInstances) {
 		if (cheerio.falling) continue;
 		drawObject(CHEERIO_MESH, cheerio.x, cheerioPosY, cheerio.z, 1.0f, 1.0f, 1.0f);
 	}
 
-	// Velas
+	// Render Candles
 	drawCenteredObject(CANDLE_BASE_MESH, 51.25f, candleBasePosY, 32.25f,
 		1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0);
 
@@ -1880,41 +1813,20 @@ void drawReflectableObjects(float cheerioPosY, float candleBasePosY, float candl
 	drawCenteredObject(CANDLE_WICK_MESH, 55.5f, candleWickPosY, -41.0f,
 		1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0);
 
-	// Manteigas
+	// Render Butters
 	for (int i = 0; i < NUM_BUTTERS; i++) {
 		drawButter(butters[i]);
 	}
 
-	// Laranjas
+	// Render Oranges
 	for (int i = 0; i < NUM_ORANGES; i++) {
 		drawOrange(oranges[i]);
 	}
 
-	// Carro
+	// Render Car
 	if (withCar) {
 		drawCar(carBarbie);
 	}
-
-}
-
-void createTableReflectionMask(float tableWidth, float tableDepth, float tableTopY) {
-
-	glEnable(GL_STENCIL_TEST);
-	glStencilMask(0xFF);
-
-	// Sempre que a mesa for desenhada: stencil = 1
-	glStencilFunc(GL_ALWAYS, 1, 0xFF);
-	glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
-	// sem cores
-	glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
-	// Nem alterar o depth buffer
-	glDepthMask(GL_FALSE);
-	// Uma camada muito fina exatamente no topo da mesa
-	drawObject(TABLE_MESH, 0.0f, tableTopY, 0.0f, tableWidth, 0.01f, tableDepth);
-	// Restaurar
-	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-	glDepthMask(GL_TRUE);
-
 }
 
 void drawPlanarReflection(float tableTopY, float cheerioPosY, float candleBasePosY, float candleWickPosY) {
@@ -1967,8 +1879,8 @@ void computeShadowMatrix(const float plane[4], const float light[4], float shado
 	shadowMat[15] = dot - light[3] * plane[3];
 }
 
-// Create a stencil mask for the table to limit where shadows are drawn
-void createTableShadowMask(float tableWidth, float tableDepth, float tableTopY) {
+// Create a stencil mask for the table to limit where shadows and reflections are drawn
+void createTableMask(float tableWidth, float tableDepth, float tableTopY) {
 	glEnable(GL_STENCIL_TEST); // Enable stencil testing
 	glStencilMask(0xFF); // Allow writing to all bits of the stencil buffer
 	glStencilFunc(GL_ALWAYS, 1, 0xFF); // Always pass the stencil test and set the reference value to 1
@@ -1992,7 +1904,7 @@ void drawPlanarShadows(float tableWidth, float tableDepth, float tableTopY,
 	float shadowMat[16];
 
 	computeShadowMatrix(plane, light, shadowMat);
-	createTableShadowMask(tableWidth, tableDepth, shadowPlaneY);
+	createTableMask(tableWidth, tableDepth, shadowPlaneY);
 
 	glStencilFunc(GL_EQUAL, 1, 0xFF); // Only draw where the stencil value is 1 (the table area)
 	glStencilOp(GL_KEEP, GL_KEEP, GL_INCR); // Increment the stencil value to avoid drawing shadows multiple times in the same area
@@ -2006,10 +1918,6 @@ void drawPlanarShadows(float tableWidth, float tableDepth, float tableTopY,
 	mu.popMatrix(gmu::MODEL);
 }
 
-const bool REAR_VIEW_ONLY_REVERSING = true;
-// Side mirror glass
-const float MIRROR_Z = 1.103f; // reflecting faces the back of the car
-
 static void drawSideMirrorGlass() {
 	mu.pushMatrix(gmu::MODEL);
 	mu.translate(gmu::MODEL, carBarbie.x, carBarbie.y, carBarbie.z);
@@ -2019,7 +1927,7 @@ static void drawSideMirrorGlass() {
 	mu.popMatrix(gmu::MODEL);
 }
 
-// Rear-view mirror (top centre of the window)
+// Compute screen coordinates for rear view mirror viewport HUD overlay
 static void rearViewRect(float& x, float& y, float& w, float& h) {
 	w = 0.35f * WinX;
 	h = w / 3.5f;
@@ -2027,40 +1935,55 @@ static void rearViewRect(float& x, float& y, float& w, float& h) {
 	y = WinY - h - 10.0f;
 }
 
+// Draw the rear view mirror HUD overlay with the car mesh in the center
 static void drawRearViewShape() {
 	float x, y, w, h;
 	rearViewRect(x, y, w, h);
 	mu.pushMatrix(gmu::MODEL);      mu.loadIdentity(gmu::MODEL);
 	mu.pushMatrix(gmu::VIEW);       mu.loadIdentity(gmu::VIEW);
 	mu.pushMatrix(gmu::PROJECTION); mu.loadIdentity(gmu::PROJECTION);
-	mu.ortho(0.0f, (float)WinX, 0.0f, (float)WinY, -1.0f, 1.0f); // coordinates
+	mu.ortho(0.0f, (float)WinX, 0.0f, (float)WinY, -1.0f, 1.0f); // Set up orthographic projection for HUD overlay
 	drawObject(carMesh.trim, x + 0.5f * w, y + 0.5f * h, 0.0f, w, h, 1.0f, 0.0f, 0);
 	mu.popMatrix(gmu::PROJECTION);
 	mu.popMatrix(gmu::VIEW);
 	mu.popMatrix(gmu::MODEL);
 }
 
-// Marks the shape and background colour and depth = far and draw
+// Marks the mirror shape in the stencil buffer, applies the background color, and sets depth to far before rendering geometry into the mirror region.
 static void markMirror(int bit, void (*drawShape)(), bool respectDepth) {
+	// Enable stencil writing for the specific bit layer mask
 	glStencilMask(bit);
 	glStencilFunc(GL_ALWAYS, bit, bit);
 	glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+
+	// Disable color and depth writes while marking the stencil buffer mask
 	glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
 	glDepthMask(GL_FALSE);
 	if (!respectDepth) glDisable(GL_DEPTH_TEST);
+
+	// Draw the mirror surface geometry into the stencil buffer
 	drawShape();
 	glEnable(GL_DEPTH_TEST);
 
+	// Lock stencil buffer writes and configure stencil test for mirror interior pixels
 	glStencilMask(0x00);
 	glStencilFunc(GL_EQUAL, bit, bit);
+
+	// Re-enable color and depth buffer writing
 	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 	glDepthMask(GL_TRUE);
+
+	// Force maximum depth (far plane) for the mirror background pass
 	glDepthFunc(GL_ALWAYS);
-	glDepthRange(1.0, 1.0); // everything drawn now gets depth = far
+	glDepthRange(1.0, 1.0); // verything drawn in this step gets depth = far
+
+	// Fill the mirror area with a constant background tint color (simulating sky reflection)
 	glEnable(GL_BLEND);
-	glBlendColor(0.55f, 0.70f, 0.85f, 1.0f); // mirror background (sky)
+	glBlendColor(0.55f, 0.70f, 0.85f, 1.0f); // Mirror background tint (sky color)
 	glBlendFunc(GL_CONSTANT_COLOR, GL_ZERO);
 	drawShape();
+
+	// Restore default depth testing, blending state, and depth ranges
 	glDisable(GL_BLEND);
 	glDepthRange(0.0, 1.0);
 	glDepthFunc(GL_LESS);
@@ -2093,7 +2016,7 @@ void drawMirrors(float tablePosY, float cheerioPosY, float candleBasePosY, float
 			glEnable(GL_CULL_FACE);
 		}
 
-		// REAR-VIEW CAM
+		// Check if the car is currently reversing or if rear - view is always enabled
 		bool reversing = carBarbie.speed < -0.01f || (keyTras && !keyFrente && carBarbie.speed <= 0.0f);
 		if (reversing || !REAR_VIEW_ONLY_REVERSING) {
 			markMirror(0x02, drawRearViewShape, false);
@@ -2169,8 +2092,8 @@ void renderSim(void) {
 	if (deltaTime > 0.05f) {
 		deltaTime = 0.05f;
 	}
-	if (!paused)
-	{
+
+	if (!paused) {
 		if (gameOver) {
 			gameOverTimer += deltaTime;
 		} else if (carFalling) {
@@ -2207,19 +2130,20 @@ void renderSim(void) {
 	mu.loadIdentity(gmu::MODEL);
 	setupCamera(tableWidth, tableDepth, tablePosY);
 
-	// Render Sky Box
+	// === Render Sky Box ===
 
-	//it won't write anything to the zbuffer; all subsequently drawn scenery to be in front of the sky box. 
-	glDepthMask(GL_FALSE); //podia fazer o disable do depth teste
-	glFrontFace(GL_CW); // set clockwise vertex order to mean the front => o mesmo que fazer glCullFace(GL_FRONT);
+	// Disable depth buffer writing so skybox is always drawn behind scene geometry
+	glDepthMask(GL_FALSE);
+	glFrontFace(GL_CW); // Set clockwise winding order for interior cube face rendering
 
 	mu.pushMatrix(gmu::MODEL);
 	mu.scale(gmu::MODEL, 1000.0f, 1000.0f, 1000.0f);
-	mu.translate(gmu::MODEL, -0.5f, -0.5f, -0.5f); //centrar o cubo na origem
+	mu.translate(gmu::MODEL, -0.5f, -0.5f, -0.5f);
 
 	mu.pushMatrix(gmu::VIEW);
 	float* viewMatrix = mu.get(gmu::VIEW);
-	viewMatrix[12] = 0.0f; //cancel the translation of the camera, so the sky box is always centered at the camera position
+	// Strip translation components from view matrix so skybox stays fixed around camera
+	viewMatrix[12] = 0.0f;
 	viewMatrix[13] = 0.0f;
 	viewMatrix[14] = 0.0f;
 
@@ -2227,8 +2151,8 @@ void renderSim(void) {
 	mu.computeNormalMatrix3x3();
 
 	dataMesh data;
-	data.meshID = SKYBOX_MESH; //cube mesh
-	data.texMode = 5; //skyBox texture mapping
+	data.meshID = SKYBOX_MESH; // Cube mesh ID
+	data.texMode = 5;		   // Skybox cubemap shader technique
 
 	data.vm = mu.get(gmu::VIEW_MODEL);
 	data.pvm = mu.get(gmu::PROJ_VIEW_MODEL);
@@ -2237,8 +2161,11 @@ void renderSim(void) {
 	mu.popMatrix(gmu::VIEW);
 	mu.popMatrix(gmu::MODEL);
 
-	glFrontFace(GL_CCW); // restore counter clockwise vertex order to mean the front => o mesmo que fazer glCullFace(GL_BACK);
+	// Restore standard counter-clockwise winding order and re-enable depth writing
+	glFrontFace(GL_CCW);
 	glDepthMask(GL_TRUE);
+
+	// === Light and Fog Setup ===
 
 	// Set directional light mode (day/night) and transform the light direction to eye space
 	float dirEye[3];
@@ -2302,11 +2229,13 @@ void renderSim(void) {
 		renderer.setFogMode(fogMode);
 	}
 
+	// === Scene Drawing ===
+
 	float tableTopY = tablePosY + tableHeight * 0.5f;
-	createTableReflectionMask(tableWidth, tableDepth, tableTopY);
+	createTableMask(tableWidth, tableDepth, tableTopY);
 	drawPlanarReflection(tableTopY, cheerioPosY, candleBasePosY, candleWickPosY);
 
-	// reflex�es ativas para a mesa
+	// Enable alpha blending for the semi-transparent table surface reflection
 	glEnable(GL_BLEND);
 	glBlendColor(0.0f, 0.0f, 0.0f, 0.80f);
 	glBlendFunc(GL_CONSTANT_ALPHA, GL_ONE_MINUS_CONSTANT_ALPHA);
@@ -2314,7 +2243,7 @@ void renderSim(void) {
 	// Draw the table
 	drawObject(TABLE_MESH, 0.0f, tablePosY, 0.0f, tableWidth, tableHeight, tableDepth, 0.0f, 3, true);
 
-	// j� n�o est�o ativas
+	// Disable blending after table pass
 	glDisable(GL_BLEND);
 
 	// Draw the roads
@@ -2398,12 +2327,16 @@ void renderSim(void) {
 	// Draw the car
 	drawCar(carBarbie);
 
+	// Draw the planar shadows of the objects on the table surface if day mode is enabled
 	if (dayMode) {
 		drawPlanarShadows(tableWidth, tableDepth, tableTopY, cheerioPosY, candleBasePosY, candleWickPosY);
 	}
+
+	// Draw the mirrors (planar reflections and rear view mirror)
 	drawMirrors(tablePosY, cheerioPosY, candleBasePosY, candleWickPosY);
 
 	drawHUD();
+
 	glutSwapBuffers();
 }
 
@@ -2411,8 +2344,7 @@ void renderSim(void) {
 // GLUT CALLBACKS & USER INPUT HANDLERS
 // ============================================================================
 
-void timer(int value)
-{
+void timer(int value) {
 	std::ostringstream oss;
 	oss << CAPTION << ": " << FrameCount << " FPS @ (" << WinX << "x" << WinY << ")";
 	std::string s = oss.str();
@@ -2422,29 +2354,13 @@ void timer(int value)
 	glutTimerFunc(1000, timer, 0);
 }
 
-void refresh(int value)
-{
-	//PUT YOUR CODE HERE
+void refresh(int value) {
 	glutPostRedisplay();
 	glutTimerFunc(1000 / FPS, refresh, 0);
 }
 
 // Callback function for window resizing
 void changeSize(int w, int h) {
-
-	/* (Antigo - lightDemo)
-	float ratio;
-	// Prevent a divide by zero, when window is too short
-	if(h == 0)
-		h = 1;
-	// set the viewport to be the entire window
-	glViewport(0, 0, w, h);
-	// set the projection matrix
-	ratio = (1.0f * w) / h;
-	mu.loadIdentity(gmu::PROJECTION);
-	mu.perspective(53.13f, ratio, 0.1f, 1000.0f);
-	*/
-
 	// Prevent a divide by zero, when window is too short
 	if (h == 0)
 		h = 1;
@@ -2452,16 +2368,15 @@ void changeSize(int w, int h) {
 	WinX = w;
 	WinY = h;
 
-	// set the viewport to be the entire window
+	// Set the viewport to be the entire window
 	glViewport(0, 0, w, h);
-	//guarda o aspecto ratio para as cameras
+	// Update aspect ratio parameter used for camera projection matrices
 	aspectRatio = (float)w / (float)h;
-
 }
 
 void processKeys(unsigned char key, int xx, int yy) {
 	switch (key) {
-		//Cameras (1,2,3)
+		// Cameras (1,2,3)
 	case '1':
 		CameraMode = 1;
 		printf("Camera 1: Fixed orthogonal camera - satellite top view\n");
@@ -2485,7 +2400,7 @@ void processKeys(unsigned char key, int xx, int yy) {
 		printf("Camera 3: Moving prespective camera - car following\n");
 		break;
 
-	case 27:
+	case 27: // ESC key
 		glutLeaveMainLoop();
 		break;
 
@@ -2518,24 +2433,23 @@ void processKeys(unsigned char key, int xx, int yy) {
 		printf("Fog: %s\n", fogMode ? "ON" : "OFF");
 		break;
 
-	case 'm':    //reset
+	case 'm': // Reset camera spherical coordinates to default values
 	case 'M':
-		alpha = 57.0f; _beta = 18.0f;  // Camera Spherical Coordinates
+		alpha = 57.0f; _beta = 18.0f;
 		r = 45.0f;
 		camX = r * sin(alpha * 3.14f / 180.0f) * cos(_beta * 3.14f / 180.0f);
 		camZ = r * cos(alpha * 3.14f / 180.0f) * cos(_beta * 3.14f / 180.0f);
 		camY = r * sin(_beta * 3.14f / 180.0f);
 		break;
 
-	case 'j':
+	case 'j': // Enable MSAA anti-aliasing
 	case 'J':
 		glEnable(GL_MULTISAMPLE); break;
 
-	case 'k':
+	case 'k': // Disable MSAA anti-aliasing
 	case 'K':
 		glDisable(GL_MULTISAMPLE); break;
 
-		// iniciar o movimento ou acelera��o
 	case 'w':
 	case 'W':
 		keyFrente = true;
@@ -2572,11 +2486,9 @@ void processKeys(unsigned char key, int xx, int yy) {
 	}
 }
 
-void processKeyUp(unsigned char key, int xx, int yy)
-{
+void processKeyUp(unsigned char key, int xx, int yy) {
 	switch (key) {
 
-		// parar o movimento ou acelera��o
 	case 'w':
 	case 'W':
 		keyFrente = false;
@@ -2599,9 +2511,8 @@ void processKeyUp(unsigned char key, int xx, int yy)
 	}
 }
 
-void processMouseButtons(int button, int state, int xx, int yy)
-{
-	// start tracking the mouse
+void processMouseButtons(int button, int state, int xx, int yy) {
+	// Start tracking the mouse
 	if (state == GLUT_DOWN) {
 		startX = xx;
 		startY = yy;
@@ -2611,7 +2522,7 @@ void processMouseButtons(int button, int state, int xx, int yy)
 			tracking = 2;
 	}
 
-	//stop tracking the mouse
+	// Stop tracking the mouse
 	else if (state == GLUT_UP) {
 		if (tracking == 1) {
 			alpha -= (xx - startX);
@@ -2626,8 +2537,7 @@ void processMouseButtons(int button, int state, int xx, int yy)
 	}
 }
 
-void processMouseMotion(int xx, int yy)
-{
+void processMouseMotion(int xx, int yy) {
 
 	int deltaX, deltaY;
 	float alphaAux, betaAux;
@@ -2636,7 +2546,7 @@ void processMouseMotion(int xx, int yy)
 	deltaX = -xx + startX;
 	deltaY = yy - startY;
 
-	// left mouse button: move camera
+	// Left mouse button: move camera
 	if (tracking == 1) {
 
 
@@ -2649,7 +2559,7 @@ void processMouseMotion(int xx, int yy)
 			betaAux = -85.0f;
 		rAux = r;
 	}
-	// right mouse button: zoom
+	// Right mouse button: zoom
 	else if (tracking == 2) {
 
 		alphaAux = alpha;
@@ -2662,13 +2572,9 @@ void processMouseMotion(int xx, int yy)
 	camX = rAux * sin(alphaAux * 3.14f / 180.0f) * cos(betaAux * 3.14f / 180.0f);
 	camZ = rAux * cos(alphaAux * 3.14f / 180.0f) * cos(betaAux * 3.14f / 180.0f);
 	camY = rAux *   						       sin(betaAux * 3.14f / 180.0f);
-
-	//  uncomment this if not using an idle or refresh func
-	//	glutPostRedisplay();
 }
 
 void mouseWheel(int wheel, int direction, int x, int y) {
-
 	r += direction * 0.1f;
 	if (r < 0.1f)
 		r = 0.1f;
@@ -2676,23 +2582,18 @@ void mouseWheel(int wheel, int direction, int x, int y) {
 	camX = r * sin(alpha * 3.14f / 180.0f) * cos(_beta * 3.14f / 180.0f);
 	camZ = r * cos(alpha * 3.14f / 180.0f) * cos(_beta * 3.14f / 180.0f);
 	camY = r * sin(_beta * 3.14f / 180.0f);
-
-	//  uncomment this if not using an idle or refresh func
-	//	glutPostRedisplay();
 }
 
 // ============================================================================
 // SCENE SETUP & MAIN
 // ============================================================================
 
-void loadSpider()
-{
+void loadSpider() {
 	std::string spiderPath = "assets/spider/spider.obj";
 
 	strcpy_s(model_dir, sizeof(model_dir), "assets/spider/");
 
-	if (!Import3DFromFile(spiderPath, importerSpider, sceneSpider, spiderScaleFactor))
-	{
+	if (!Import3DFromFile(spiderPath, importerSpider, sceneSpider, spiderScaleFactor)) {
 		printf("ERROR: Spider could not be loaded!\n");
 		return;
 	}
@@ -2995,71 +2896,9 @@ void buildScene() {
 
 	renderer.myMeshes.push_back(amesh);
 
-	// create geometry and VAO of the cube
-	amesh = createCube();
-	memcpy(amesh.mat.ambient, amb1, 4 * sizeof(float));
-	memcpy(amesh.mat.diffuse, diff1, 4 * sizeof(float));
-	memcpy(amesh.mat.specular, spec1, 4 * sizeof(float));
-	memcpy(amesh.mat.emissive, emissive, 4 * sizeof(float));
-	amesh.mat.shininess = shininess;
-	amesh.mat.texCount = texcount;
-	renderer.myMeshes.push_back(amesh);
-
-	// create geometry and VAO of the pawn
-	amesh = createPawn();
-	memcpy(amesh.mat.ambient, amb, 4 * sizeof(float));
-	memcpy(amesh.mat.diffuse, diff, 4 * sizeof(float));
-	memcpy(amesh.mat.specular, spec, 4 * sizeof(float));
-	memcpy(amesh.mat.emissive, emissive, 4 * sizeof(float));
-	amesh.mat.shininess = shininess;
-	amesh.mat.texCount = texcount;
-	renderer.myMeshes.push_back(amesh);
-
-	// create geometry and VAO of the sphere
-	amesh = createSphere(1.0f, 20);
-	memcpy(amesh.mat.ambient, amb, 4 * sizeof(float));
-	memcpy(amesh.mat.diffuse, diff, 4 * sizeof(float));
-	memcpy(amesh.mat.specular, spec, 4 * sizeof(float));
-	memcpy(amesh.mat.emissive, emissive, 4 * sizeof(float));
-	amesh.mat.shininess = shininess;
-	amesh.mat.texCount = texcount;
-	renderer.myMeshes.push_back(amesh);
-
-	// create geometry and VAO of the cylinder
-	amesh = createCylinder(1.5f, 0.5f, 20);
-	memcpy(amesh.mat.ambient, amb, 4 * sizeof(float));
-	memcpy(amesh.mat.diffuse, diff, 4 * sizeof(float));
-	memcpy(amesh.mat.specular, spec, 4 * sizeof(float));
-	memcpy(amesh.mat.emissive, emissive, 4 * sizeof(float));
-	amesh.mat.shininess = shininess;
-	amesh.mat.texCount = texcount;
-	renderer.myMeshes.push_back(amesh);
-
-	// create geometry and VAO of the cone
-	amesh = createCone(2.5f, 1.2f, 20);
-	memcpy(amesh.mat.ambient, amb, 4 * sizeof(float));
-	memcpy(amesh.mat.diffuse, diff, 4 * sizeof(float));
-	memcpy(amesh.mat.specular, spec, 4 * sizeof(float));
-	memcpy(amesh.mat.emissive, emissive, 4 * sizeof(float));
-	amesh.mat.shininess = shininess;
-	amesh.mat.texCount = texcount;
-	renderer.myMeshes.push_back(amesh);
-
-	// create geometry and VAO of the torus
-	amesh = createTorus(0.5f, 1.5f, 20, 20);
-	memcpy(amesh.mat.ambient, amb, 4 * sizeof(float));
-	memcpy(amesh.mat.diffuse, diff, 4 * sizeof(float));
-	memcpy(amesh.mat.specular, spec, 4 * sizeof(float));
-	memcpy(amesh.mat.emissive, emissive, 4 * sizeof(float));
-	amesh.mat.shininess = shininess;
-	amesh.mat.texCount = texcount;
-	renderer.myMeshes.push_back(amesh);
-
 	buildCarMeshes();
 
-
 	//The truetypeInit creates a texture object in TexObjArray for storing the fontAtlasTexture
-
 	fontLoaded = renderer.truetypeInit(fontPathFile);
 	if (!fontLoaded)
 		cerr << "Fonts not loaded\n";
@@ -3068,7 +2907,7 @@ void buildScene() {
 
 	printf("\nNumber of Texture Objects is %d\n\n", renderer.TexObjArray.getNumTextureObjects());
 
-	// set the camera position based on its spherical coordinates
+	// Set the camera position based on its spherical coordinates
 	camX = r * sin(alpha * 3.14f / 180.0f) * cos(_beta * 3.14f / 180.0f);
 	camZ = r * cos(alpha * 3.14f / 180.0f) * cos(_beta * 3.14f / 180.0f);
 	camY = r * sin(_beta * 3.14f / 180.0f);
@@ -3080,7 +2919,7 @@ int main(int argc, char** argv) {
 
 	srand((unsigned int)time(NULL));
 
-	//  GLUT initialization
+	// GLUT initialization
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_DEPTH | GLUT_DOUBLE | GLUT_RGBA | GLUT_MULTISAMPLE | GLUT_STENCIL);
 
@@ -3092,31 +2931,30 @@ int main(int argc, char** argv) {
 	glutInitWindowSize(WinX, WinY);
 	WindowHandle = glutCreateWindow(CAPTION);
 
-	//  Callback Registration
+	// Callback Registration
 	glutDisplayFunc(renderSim);
 	glutReshapeFunc(changeSize);
 
 	glutTimerFunc(0, timer, 0);
-	//glutIdleFunc(renderSim);  // Use it for maximum performance
-	glutTimerFunc(0, refresh, 0);    //use it to to get 60 FPS whatever
+	glutTimerFunc(0, refresh, 0); // 60 FPS
 
 	//	Mouse and Keyboard Callbacks
 	glutKeyboardFunc(processKeys);
 	glutKeyboardUpFunc(processKeyUp);
-	glutIgnoreKeyRepeat(1); // ignora o repeat key do windows
+	glutIgnoreKeyRepeat(1); // Ignore key repeat when holding key down
 	glutMouseFunc(processMouseButtons);
 	glutMotionFunc(processMouseMotion);
 	glutMouseWheelFunc(mouseWheel);
 
 
-	//	return from main loop
+	// Return from main loop
 	glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE, GLUT_ACTION_GLUTMAINLOOP_RETURNS);
 
-	//	Init GLEW
+	// Init GLEW
 	glewExperimental = GL_TRUE;
 	glewInit();
 
-	// some GL settings
+	// Some GL settings
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_CULL_FACE);
 	glEnable(GL_MULTISAMPLE);
