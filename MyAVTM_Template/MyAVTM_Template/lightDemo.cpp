@@ -67,6 +67,8 @@ int points = 0;
 bool paused = false;
 bool gameOver = false;
 float gameOverTimer = 0.0f;
+float previousCarZ = -15.0f;
+bool checkpointPassed = false;
 
 // Font file path
 const string fontPathFile = "fonts/arial.ttf";
@@ -1157,6 +1159,8 @@ void respawnCar() {
 	keyTras = false;
 	keyDir = false;
 	keyEsq = false;
+
+	previousCarZ = carBarbie.z;
 }
 
 void restartGame()
@@ -1572,6 +1576,33 @@ void checkCollisions() {
 		}
 	}
 }
+
+void verifyCheckpoint()
+{
+	const float checkpointZ = initialButters[0].z;
+	const float minX = 60.0f;
+	const float maxX = 80.0f;
+
+	if (!checkpointPassed && previousCarZ < checkpointZ && carBarbie.z >= checkpointZ && carBarbie.x >= minX && carBarbie.x <= maxX) {
+		checkpointPassed = true;
+	}
+}
+
+void checkStartLine()
+{
+	const float startLineZ = -5.0f;
+	const float minX = 60.0f;
+	const float maxX = 80.0f;
+
+	// Car crossed the start line (only counts if it passed the checkpoint
+	if (checkpointPassed && previousCarZ < startLineZ && carBarbie.z >= startLineZ && carBarbie.x >= minX && carBarbie.x <= maxX) {
+		points++;
+		checkpointPassed = false;
+	}
+	// update the previous Z position of the car for the next frame
+	previousCarZ = carBarbie.z;
+}
+
 
 // ============================================================================
 // CAMERA CONTROLS & HUD RENDERING
@@ -2020,6 +2051,9 @@ void renderSim(void) {
 			carPrevZ = carBarbie.z;
 			updateCarMoviment(tableWidth, tableDepth, deltaTime);
 			checkCollisions();
+			verifyCheckpoint();
+			checkStartLine();
+			previousCarZ = carBarbie.z;
 		}
 		updateOranges();
 		updateButters(deltaTime);
