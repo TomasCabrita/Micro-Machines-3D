@@ -2322,7 +2322,7 @@ void renderSim(void) {
 	}
 
 	// Draw the spider
-	drawSpider(0, 5, 0, 20.0f);
+	drawSpider(40, 3.5, 25, 20.0f);
 
 	// Draw the car
 	drawCar(carBarbie);
