@@ -20,6 +20,8 @@
 #include <algorithm>
 #include <cstdlib>
 #include <ctime>
+#define NOMINMAX
+#include <windows.h>
 
 // Include GLEW to access OpenGL 3.3 functions
 #include <GL/glew.h>
@@ -48,6 +50,8 @@ using namespace std;
 
 #define CAPTION "AVTM 2026 Micro Machines 3D"
 #define FPS 60
+
+HANDLE hSerial = INVALID_HANDLE_VALUE;  // Serial port handle
 
 // Directory buffer and Assimp importer for the spider model
 char model_dir[200];
@@ -2344,6 +2348,69 @@ void renderSim(void) {
 // GLUT CALLBACKS & USER INPUT HANDLERS
 // ============================================================================
 
+// Initialize the Arduino serial communication
+void initArduinoSerial(const char* portName) {
+	// Open the serial port for reading
+	hSerial = CreateFileA(
+		portName,      // Serial port name
+		GENERIC_READ,  // Open for reading
+		0,			   // No sharing with other processes
+		NULL,		   // Default security attributes
+		OPEN_EXISTING, // Open the serial port if it exists, otherwise fail
+		0,			   // No special flags or attributes
+		NULL		   // No template file
+	);
+
+	// Verify that the serial port was opened successfully
+	if (hSerial == INVALID_HANDLE_VALUE) {
+		printf("Error opening serial port: %s (GetLastError = %lu)\n", portName, GetLastError());
+		return;
+	}
+
+	DCB dcbSerialParams = { 0 }; // Initialize the DCB structure to zero
+	dcbSerialParams.DCBlength = sizeof(dcbSerialParams);
+
+	// Get the current state of the serial port
+	if (!GetCommState(hSerial, &dcbSerialParams)) {
+		printf("Error getting serial port state\n");
+		return;
+	}
+
+	dcbSerialParams.BaudRate = CBR_9600;   // Set the baud rate to 9600
+	dcbSerialParams.ByteSize = 8;		   // Set the number of data bits to 8
+	dcbSerialParams.StopBits = ONESTOPBIT; // Set the number of stop bits to 1
+	dcbSerialParams.Parity = NOPARITY;	   // Set no parity
+
+	// Set the new state of the serial port
+	if (!SetCommState(hSerial, &dcbSerialParams)) {
+		printf("Error setting serial port state\n");
+		return;
+	}
+
+	COMMTIMEOUTS timeouts = { 0 }; // Initialize the COMMTIMEOUTS structure to zero
+	timeouts.ReadIntervalTimeout = 1; // Set the read interval timeout to 1 milliseconds
+	// Set the read total timeout multiplier to 1 milliseconds per byte
+	if (!SetCommTimeouts(hSerial, &timeouts)) {
+		printf("Error setting serial port timeouts\n");
+		return;
+	}
+}
+
+void readArduinoInput() {
+	if (hSerial == INVALID_HANDLE_VALUE) {
+		return; // Serial port not initialized
+	}
+
+	char buffer; // Buffer to store the read character
+	DWORD bytesRead; // Variable to store the number of bytes read
+	if (ReadFile(hSerial, &buffer, sizeof(buffer), &bytesRead, NULL) && bytesRead > 0) {
+		if (buffer == 'H' || buffer == 'h') {
+			headlightMode = !headlightMode; // Toggle the headlight mode
+			printf("Received from Arduino: %c\n", buffer);
+		}
+	}
+}
+
 void timer(int value) {
 	std::ostringstream oss;
 	oss << CAPTION << ": " << FrameCount << " FPS @ (" << WinX << "x" << WinY << ")";
@@ -2355,6 +2422,7 @@ void timer(int value) {
 }
 
 void refresh(int value) {
+	readArduinoInput();
 	glutPostRedisplay();
 	glutTimerFunc(1000 / FPS, refresh, 0);
 }
@@ -2960,6 +3028,8 @@ int main(int argc, char** argv) {
 	// Init GLEW
 	glewExperimental = GL_TRUE;
 	glewInit();
+
+	initArduinoSerial("\\\\.\\COM7");
 
 	// Some GL settings
 	glEnable(GL_DEPTH_TEST);
