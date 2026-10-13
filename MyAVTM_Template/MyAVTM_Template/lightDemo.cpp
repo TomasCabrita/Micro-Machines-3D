@@ -76,6 +76,8 @@ float gameOverTimer = 0.0f;
 float previousCarZ = -15.0f;
 bool checkpointPassed = false;
 
+void restartGame();
+
 // Font file path
 const string fontPathFile = "fonts/arial.ttf";
 bool fontLoaded = false;
@@ -441,19 +443,80 @@ void readArduinoInput() {
 
 		// Read all available bytes from the serial port
 		while (stat.cbInQue > 0 && ReadFile(hSerial, &buffer, sizeof(buffer), &bytesRead, NULL) && bytesRead > 0) {
-			if (buffer == 'D' || buffer == 'd') {
+
+			// --- LIGHTS ---
+			// 'T' is Day
+			if (buffer == 'T' || buffer == 't') {
 				dayMode = true;
 				headlightMode = false;
-				printf("Arduino: Day mode activated (lights off).\n");
+				printf("Arduino: Day mode activated.\n");
 			}
+			// 'N' is Night
 			else if (buffer == 'N' || buffer == 'n') {
 				dayMode = false;
 				headlightMode = true;
-				printf("Arduino: Night mode activated (lights on).\n");
+				printf("Arduino: Night mode activated.\n");
 			}
+			// 'H' alternates headlights on/off
 			else if (buffer == 'H' || buffer == 'h') {
 				headlightMode = !headlightMode;
 				printf("Arduino: Headlights toggled.\n");
+			}
+
+			// MPU6050
+			// 'W' = Move Forward
+			else if (buffer == 'W' || buffer == 'w') {
+				keyFrente = true;
+				keyTras = false;
+			}
+			// 'S' = Move Backward
+			else if (buffer == 'S' || buffer == 's') {
+				keyTras = true;
+				keyFrente = false;
+			}
+			// 'A' = Move Left
+			else if (buffer == 'A' || buffer == 'a') {
+				keyEsq = true;
+				keyDir = false;
+			}
+			// 'D' = Move Right
+			else if (buffer == 'D' || buffer == 'd') {
+				keyDir = true;
+				keyEsq = false;
+			}
+			// 'X' = Neutral (stop all movement)
+			else if (buffer == 'X' || buffer == 'x') {
+				keyFrente = false;
+				keyTras = false;
+				keyEsq = false;
+				keyDir = false;
+			}
+
+			// TCS34725
+			// 'R' = Red: pause game (only if not paused or game over)
+			else if (buffer == 'R' || buffer == 'r') {
+				if (!paused && !gameOver) {
+					paused = true;
+					printf("Arduino: Yellow -> paused.\n");
+				}
+			}
+			// 'Y' = Yellow: reset game (only if paused or game over)
+			else if (buffer == 'Y' || buffer == 'y') {
+				if (paused || gameOver) {
+					restartGame();
+					printf("Arduino: Red -> game reset.\n");
+				}
+			}
+			// 'G' = Green: resume game (only if paused and not game over)
+			else if (buffer == 'G' || buffer == 'g') {
+				if (paused && !gameOver) {
+					paused = false;
+					printf("Arduino: Green -> resumed.\n");
+				}
+			}
+			// 'O' = Another color (no action)
+			else if (buffer == 'O' || buffer == 'o') {
+				// Nothing to do
 			}
 			stat.cbInQue--;
 		}
