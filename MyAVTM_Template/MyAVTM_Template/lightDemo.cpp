@@ -326,30 +326,10 @@ struct CheeriosLine {
 };
 
 CheeriosLine cheeriosLine[] = {
-	{ 60.0f, -50.0f, 60.0f,  40.0f }, // 1.1 margin
-	{ 80.0f, -70.0f, 80.0f,  60.0f }, // 1.2 margin
-	{ 20.0f,  40.0f, 60.0f,  40.0f }, // 2.1 margin
-	{  0.0f,  60.0f, 80.0f,  60.0f }, // 2.2 margin
-	{  0.0f,  40.0f,  0.0f,  60.0f }, // 2.3 margin
-	{-30.0f,  20.0f, 20.0f,  20.0f }, // 3.1 margin
-	{-10.0f,  40.0f,  0.0f,  40.0f }, // 3.2 margin
-	{ 20.0f,  20.0f, 20.0f,  40.0f }, // 3.3 margin
-	{-30.0f,  20.0f,-30.0f,  60.0f }, // 4.1 margin
-	{-10.0f,  40.0f,-10.0f,  80.0f }, // 4.2 margin
-	{-60.0f,  60.0f,-30.0f,  60.0f }, // 5.1 margin
-	{-80.0f,  80.0f,-10.0f,  80.0f }, // 5.2 margin
-	{-80.0f, -80.0f,-80.0f,  80.0f }, // 6.1 margin
-	{-60.0f, -60.0f,-60.0f,  60.0f }, // 6.2 margin
-	{-80.0f, -80.0f, 10.0f, -80.0f }, // 7.1 margin
-	{-60.0f, -60.0f,-10.0f, -60.0f }, // 7.2 margin
-	{-10.0f, -60.0f,-10.0f,  10.0f }, // 8.1 margin
-	{ 10.0f, -80.0f, 10.0f, -10.0f }, // 8.2 margin
-	{ 10.0f, -10.0f, 30.0f, -10.0f }, // 9.1 margin
-	{-10.0f,  10.0f, 50.0f,  10.0f }, // 9.2 margin
-	{ 30.0f, -70.0f, 30.0f, -10.0f }, // 10.1 margin
-	{ 50.0f, -50.0f, 50.0f,  10.0f }, // 10.2 margin
-	{ 30.0f, -70.0f, 80.0f, -70.0f }, // 11.1 margin
-	{ 50.0f, -50.0f, 60.0f, -50.0f }  // 11.2 margin
+	{ -85.0f, -85.0f,  79.0f, -85.0f },
+	{  85.0f, -85.0f,  85.0f,  79.0f },
+	{  85.0f,  85.0f, -79.0f,  85.0f },
+	{ -85.0f,  85.0f, -85.0f, -79.0f }
 };
 
 const float CHEERIO_FALL_GRAVITY = 35.0f;
@@ -2243,7 +2223,7 @@ void renderSim(void) {
 	float marginWidth = 1.0f, marginHeight = 1.0f;
 	float marginPosY = roadPosY + 0.3f;
 
-	float cheerioPosY = marginPosY + 1.0f;
+	float cheerioPosY = tablePosY + tableHeight * 0.5f + 0.5f;
 	float spacing = 6.0f;
 
 	float candleBasePosY = roadPosY + 6.0f;
@@ -3132,7 +3112,7 @@ int main(int argc, char** argv) {
 	glewExperimental = GL_TRUE;
 	glewInit();
 
-	initArduinoSerial("\\\\.\\COM7");
+	initArduinoSerial("\\\\.\\COM3");
 
 	// Some GL settings
 	glEnable(GL_DEPTH_TEST);
