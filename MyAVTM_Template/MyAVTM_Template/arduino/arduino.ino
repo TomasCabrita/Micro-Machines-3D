@@ -254,6 +254,7 @@ void setup() {
 
   Wire.begin(); // Inicializa o barramento de comunicação I2C
   Wire.setClock(100000); // Define a frequência do barramento I2C a 100 kHz (Standard Mode)
+  Wire.setWireTimeout(25000, true); // PREVINE CONGELAMENTOS: Liberta o I2C se travar por mais de 25ms
 
   delay(1000); // Pequeno atraso para estabilização de energia dos módulos
 
