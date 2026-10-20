@@ -194,15 +194,15 @@ struct Car {
 	float fallPitch = 0.0f;
 	float fallRoll = 0.0f;
 
-	// Dimensions
-	float width = 4.5f;
+	// Car dimensions
+	float width = 3.0f;
 	float height = 3.15f;
-	float depth = 7.0f;
+	float depth = 5.0f;
 
 	// Movement state
 	float speed = 0.0f;
-	float acceleration = 20.0f;
-	float maxSpeed = 80.0f;
+	float acceleration = 6.0f;
+	float maxSpeed = 12.0f;
 
 	// Wheel and steering state
 	float wheelSpin = 0.0f;   // Wheel rotation 
@@ -463,6 +463,17 @@ void readArduinoInput() {
 			else if (buffer == 'D' || buffer == 'd') {
 				keyDir = true;
 				keyEsq = false;
+			}
+			// Q = Parar de acelerar/recuar
+			else if (buffer == 'Q' || buffer == 'q') {
+				keyFrente = false;
+				keyTras = false;
+			}
+
+			// E = Parar de virar
+			else if (buffer == 'E' || buffer == 'e') {
+				keyEsq = false;
+				keyDir = false;
 			}
 			// 'X' = Neutral (stop all movement)
 			else if (buffer == 'X' || buffer == 'x') {
@@ -1315,8 +1326,8 @@ void updateCarFall(float deltaTime) {
 
 void updateCarMoviment(float tableWidth, float tableDepth, float deltaTime) {
 	const float deceleration = 20.0f;
-	const float brakePower = 70.0f;
-	const float turnSpeed = 160.0f;
+	const float brakePower = 80.0f;
+	const float turnSpeed = 50.0f;
 
 	// Acceleration and braking controls
 	// W and S at the same time: brake
@@ -1682,6 +1693,7 @@ void checkStartLine() {
 	// Award points only if the checkpoint was passed and the car crosses the start line
 	if (checkpointPassed && previousCarZ < startLineZ && carBarbie.z >= startLineZ && carBarbie.x >= minX && carBarbie.x <= maxX) {
 		points++;
+		sendArduinoCommand('P');
 		checkpointPassed = false;
 	}
 	// Update cached Z coordinate for next frame cross checks
@@ -2634,7 +2646,14 @@ void processKeys(unsigned char key, int xx, int yy) {
 			printf("Game restarted\n");
 		}
 		break;
+
+	case 'b':
+	case 'B':
+		sendArduinoCommand('Z');
+		printf("MPU6050 calibration started\n");
+		break;
 	}
+
 }
 
 void processKeyUp(unsigned char key, int xx, int yy) {

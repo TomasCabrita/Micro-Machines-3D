@@ -28,7 +28,33 @@ const unsigned long MPU_CHECK_INTERVAL = 3000; // Intervalo de tempo entre tenta
 const unsigned long MPU_READ_INTERVAL = 100; // Intervalo de tempo entre leituras de inclinação (100 ms)
 
 const float limit = 20.0; // Limite de inclinação em graus (threshold) para acionar os movimentos
+const float forwardLimit = 10.0;
+const float steeringLimit = 8.0;
+
 char lastDirection = 'X'; // Última direção enviada ('W', 'S', 'A', 'D' ou 'X'), usada para detetar mudanças
+
+// Calibracao do MPU6050
+bool calibrating = false;
+bool calibrated = false;
+
+int calibrationCount = 0;
+
+float offsetX = 0.0;
+float offsetY = 0.0;
+
+float sumX = 0.0;
+float sumY = 0.0;
+
+const int CALIBRATION_SAMPLES = 20;
+
+// Controlo dos sons de calibracao
+bool calibrationFinishBeep = false;
+unsigned long calibrationBeepStart = 0;
+
+// Comandos enviados ao jogo
+char lastMovement = 'Q';
+char lastSteering = 'E';
+unsigned long lastMovementSend = 0;
 
 // ==============================
 // TCS34725 (SENSOR DE CORES)
@@ -46,7 +72,7 @@ unsigned long lastTcsCheck = 0; // Guarda o tempo da última tentativa de conex�
 unsigned long lastTcsRead = 0; // Guarda o tempo da última leitura de cor
 
 const unsigned long TCS_CHECK_INTERVAL = 3000; // Intervalo de tempo para verificar/reconectar o sensor de cor (3 segundos)
-const unsigned long TCS_READ_INTERVAL = 300; // Intervalo de tempo entre leituras do sensor de cor (300 ms)
+const unsigned long TCS_READ_INTERVAL = 200; // Intervalo de tempo entre leituras do sensor de cor (300 ms)
 
 char lastColorSent = 'O'; // Guarda a última cor confirmada e enviada via Serial ('R' = Vermelho, 'G' = Verde, 'Y' = Amarelo, 'O' = Outra/Pouca Luz)
 char colorCandidate = 'O'; // Cor candidata a ser confirmada nas leituras consecutivas
@@ -71,6 +97,8 @@ int lightState = 1; // Estado atual da iluminação ambiente (1 = dia, 0 = noite
 #define NOTE_D5 587
 #define NOTE_E5 659
 #define NOTE_F5 698
+#define NOTE_AB4 415
+#define NOTE_BB4 466
 #define REST 0
 
 // Melodia reproduzida no Game Over (estilo Super Mario)
@@ -85,6 +113,26 @@ int deathDurations[] = {
   8, 8, 8, 8,
   6, 6, 6, 8,
   8, 8, 8, 4
+};
+
+// Melodia de vitória
+int victoryMelody[] = {
+  REST,
+  NOTE_C5, NOTE_C5, NOTE_C5,
+  NOTE_C5,
+  NOTE_AB4, NOTE_BB4,
+  NOTE_C5, REST, NOTE_BB4,
+  NOTE_C5
+};
+
+// Duração relativa de cada nota
+int victoryDurations[] = {
+  4,
+  12, 12, 12,
+  4,
+  4, 4,
+  12, 12, 12,
+  4
 };
 
 // ==============================
@@ -120,6 +168,57 @@ void playDeathSound() {
   }
 }
 
+// Controlo da melodia de vitória
+bool victoryPlaying = false;
+int victoryIndex = 0;
+unsigned long victoryNoteStart = 0;
+
+// Iniciar melodia
+void playVictorySound() {
+  victoryPlaying = true;
+  victoryIndex = 0;
+  victoryNoteStart = millis();
+
+  int duration = 1700 / victoryDurations[0];
+
+  if (victoryMelody[0] != REST) {
+    tone(BUZZER_PIN, victoryMelody[0], duration);
+  } else {
+    noTone(BUZZER_PIN);
+  }
+}
+
+// Atualizar melodia sem bloquear o Arduino
+void updateVictorySound() {
+  if (!victoryPlaying) return;
+
+  int duration = 1700 / victoryDurations[victoryIndex];
+  unsigned long interval = duration * 1.10;
+
+  if (millis() - victoryNoteStart >= interval) {
+    victoryIndex++;
+
+    int totalNotes =
+      sizeof(victoryMelody) / sizeof(victoryMelody[0]);
+
+    if (victoryIndex >= totalNotes) {
+      victoryPlaying = false;
+      noTone(BUZZER_PIN);
+      return;
+    }
+
+    victoryNoteStart = millis();
+
+    duration = 1700 / victoryDurations[victoryIndex];
+
+    if (victoryMelody[victoryIndex] != REST) {
+      tone(BUZZER_PIN, victoryMelody[victoryIndex], duration);
+    } else {
+      noTone(BUZZER_PIN);
+    }
+  }
+}
+
 // ==============================
 // INICIALIZAÇÃO DOS SENSORES I2C
 // ==============================
@@ -146,53 +245,140 @@ void initTCS() {
 // LEITURA E PROCESSAMENTO DA INCLINAÇÃO (MPU6050)
 // ==============================
 
+void startCalibration() {
+  if (!mpuOn) return;
+
+  calibrating = true;
+  calibrated = false;
+  calibrationCount = 0;
+
+  sumX = 0.0;
+  sumY = 0.0;
+
+  // Parar outros sons
+  victoryPlaying = false;
+  calibrationFinishBeep = false;
+  noTone(BUZZER_PIN);
+
+  // Libertar os controlos do carro
+  Serial.print('Q');
+  Serial.print('E');
+
+  lastMovement = 'Q';
+  lastSteering = 'E';
+  lastMovementSend = millis();
+
+  // Som de inicio
+  tone(BUZZER_PIN, 600, 200);
+}
+
 void readInclination() {
   if (!mpuOn) return;
 
   sensors_event_t a, g, temp;
 
-  // Tenta obter os dados do sensor; se falhar, marca como desligado
   if (!mpu.getEvent(&a, &g, &temp)) {
     mpuOn = false;
-    lastDirection = 'X';
+    Serial.print('Q');
+    Serial.print('E');
     return;
   }
 
-  // Cálculo do Pitch (Frente / Trás) em graus
-  float pitch = atan2(
-    -a.acceleration.x,
-    sqrt(a.acceleration.y * a.acceleration.y + a.acceleration.z * a.acceleration.z)
-  ) * 180.0 / PI;
+  // Calibrar a posicao neutra
+  if (calibrating) {
+    sumX += a.acceleration.x;
+    sumY += a.acceleration.y;
 
-  // Cálculo do Roll (Esquerda / Direita) em graus
-  float roll = atan2(a.acceleration.y, a.acceleration.z) * 180.0 / PI;
+    calibrationCount++;
 
-  // Proteção contra valores inválidos (Not a Number)
-  if (isnan(pitch) || isnan(roll)) return;
+    if (calibrationCount >= CALIBRATION_SAMPLES) {
+      offsetX = sumX / calibrationCount;
+      offsetY = sumY / calibrationCount;
 
-  char direction = 'X'; // Direção padrão: Posição horizontal / Neutro
+      calibrating = false;
+      calibrated = true;
 
-  // Processamento de Frente / Trás (Pitch)
-  if (abs(pitch) > limit && abs(pitch) >= abs(roll)) {
-    direction = (pitch > 0) ? 'W' : 'S'; // 'W' = Frente, 'S' = Trás
+      // Primeiro som de conclusao
+      tone(BUZZER_PIN, 800, 140);
+      calibrationFinishBeep = true;
+      calibrationBeepStart = millis();
+    }
+
+    return;
   }
-  // Processamento de Esquerda / Direita (Roll)
-  else if (abs(roll) > limit) {
-    direction = (roll > 0) ? 'D' : 'A'; // 'D' = Direita, 'A' = Esquerda
+
+  // Nao controlar o carro antes da calibracao
+  if (!calibrated) return;
+
+  // Inclinação relativamente à posição calibrada
+  float ax = a.acceleration.x - offsetX;
+  float ay = a.acceleration.y - offsetY;
+  float az = a.acceleration.z;
+
+  float forwardAngle =
+    atan2(-ax, abs(az)) * 180.0 / PI;
+
+  float rightAngle =
+    atan2(-ay, abs(az)) * 180.0 / PI;
+
+  // Intensidade e direção da inclinação
+  float magnitude = sqrt(
+    forwardAngle * forwardAngle +
+    rightAngle * rightAngle
+  );
+
+  float directionAngle =
+    atan2(rightAngle, forwardAngle) * 180.0 / PI;
+
+  // Comandos independentes
+  char movement = 'Q';
+  char steering = 'E';
+
+  const float forwardLimit = 10.0;
+  const float backwardLimit = 20.0;
+  const float steeringLimit = 8.0;
+  const float steeringAngle = 18.0;
+
+  // Frente e trás
+  if (magnitude > forwardLimit &&
+      abs(directionAngle) < 80.0) {
+    movement = 'W';
+  }
+  else if (magnitude > backwardLimit &&
+           abs(directionAngle) > 100.0) {
+    movement = 'S';
   }
 
-  // Envia quando a direção muda, e reenvia a cada 500 ms enquanto estiver inclinado
-  // (assim o jogo volta a sincronizar se arrancar depois do Arduino)
-  static unsigned long lastDirectionSend = 0;
+  // Esquerda e direita
+  if (magnitude > steeringLimit) {
+    if (directionAngle > steeringAngle &&
+        directionAngle < 162.0) {
+      steering = 'D';
+    }
+    else if (directionAngle < -steeringAngle &&
+             directionAngle > -162.0) {
+      steering = 'A';
+    }
+  }
+
+  // Enviar comandos apenas quando mudam
+  // ou a cada 500 ms
+
   unsigned long nowMs = millis();
+  bool resend = (nowMs - lastMovementSend >= 500);
 
-  bool changed = (direction != lastDirection);
-  bool resend  = (direction != 'X') && (nowMs - lastDirectionSend >= 500);
+  if (movement != lastMovement || resend) {
+    Serial.print(movement);
+    lastMovement = movement;
+  }
 
-  if (changed || resend) {
-    Serial.print(direction);
-    lastDirection = direction;
-    lastDirectionSend = nowMs;
+  if (steering != lastSteering || resend) {
+    Serial.print(steering);
+    lastSteering = steering;
+  }
+
+  if (resend) {
+    lastMovementSend = nowMs;
   }
 }
 
@@ -260,6 +446,7 @@ void setup() {
 
   initMPU(); // Tenta iniciar o giroscópio/acelerómetro MPU6050
   initTCS(); // Tenta iniciar o sensor de cor TCS34725
+  startCalibration();
 
   lastMpuCheck = millis(); // Inicializa os temporizadores de verificação periódica
   lastTcsCheck = millis();
@@ -274,8 +461,27 @@ void loop() {
   if (Serial.available() > 0) {
     char cmd = Serial.read();
 
-    if (cmd == 'I') playHitSound(); // Comando 'I' -> Som de impacto
-    else if (cmd == 'G') playDeathSound(); // Comando 'G' -> Som de Game Over do Mario
+    if (cmd == 'Z') {
+      startCalibration();
+    }
+    else if (!calibrating) {
+      if (cmd == 'I' && !victoryPlaying)
+        playHitSound();
+      else if (cmd == 'G' && !victoryPlaying)
+        playDeathSound();
+      else if (cmd == 'P')
+        playVictorySound();
+    }
+  }
+
+  updateVictorySound();
+
+  // Segundo som de conclusao da calibracao
+  if (calibrationFinishBeep &&
+      millis() - calibrationBeepStart >= 180) {
+
+    tone(BUZZER_PIN, 1100, 230);
+    calibrationFinishBeep = false;
   }
 
   // 2. BOTÃO MANUAL DOS FARÓIS (D4)
